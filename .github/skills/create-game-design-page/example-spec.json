@@ -1,0 +1,35 @@
+{
+  "id": "example-game-page",
+  "title": "Example — Game Design Page",
+  "parentId": null,
+  "blocks": [
+    { "hero": { "eyebrow": "Action roguelike · pitch", "title": "Emberfall", "subtitle": "Descend a collapsing volcano; every death reshapes the mountain.", "tone": "dark" } },
+    { "badges": { "label": "At a glance", "items": [
+      { "label": "Action roguelike", "tone": "red" },
+      { "label": "Co-op up to 3", "tone": "sky" },
+      { "label": "PC / consoles", "tone": "purple" }
+    ] } },
+    { "h2": "Design pillars" },
+    { "cards": { "label": "Three pillars", "columns": 3, "items": [
+      { "eyebrow": "Move", "title": "Momentum combat", "body": "Dashing through lava builds heat you spend on signature moves.", "tone": "orange" },
+      { "eyebrow": "Risk", "title": "The mountain bites back", "body": "Linger too long and eruptions seal off the safe routes.", "tone": "red" },
+      { "eyebrow": "Grow", "title": "Persistent forge", "body": "Ore banked between runs unlocks permanent gear at the hub.", "tone": "amber" }
+    ] } },
+    { "h2": "Core loop" },
+    { "ol": [
+      "Drop into a procedurally carved cavern layer.",
+      "Fight downward, banking ore at each checkpoint shrine.",
+      "Beat the layer boss or extract before the next eruption."
+    ] },
+    { "labeled": { "label": "North star", "value": "Fast in the hand, heavy in the chest — speed should feel earned, never safe.", "highlight": true, "multiline": true } },
+    { "h2": "Palette" },
+    { "swatch": { "label": "Mood palette", "colors": [
+      { "hex": "#1A1014", "name": "Obsidian" },
+      { "hex": "#C8351F", "name": "Magma" },
+      { "hex": "#E8A23A", "name": "Ember" },
+      { "hex": "#F2E9DC", "name": "Ash White" }
+    ] } },
+    { "status": { "label": "Production", "value": "Prototype", "tone": "yellow" } },
+    { "tags": { "label": "References", "tone": "slate", "items": ["Hades", "Dead Cells", "Returnal"] } }
+  ]
+}

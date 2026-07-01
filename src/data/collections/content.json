@@ -1,0 +1,48 @@
+[
+  {
+    "id": "test-sub",
+    "name": "Test Sub",
+    "description": "",
+    "columns": [
+      "col-1",
+      "col-2",
+      "col-3"
+    ],
+    "items": [
+      {
+        "id": "test-sub1",
+        "values": {
+          "col-1": "Test Sub1",
+          "col-2": "",
+          "col-3": ""
+        }
+      },
+      {
+        "id": "test-sub2",
+        "values": {
+          "col-1": "Test Sub2",
+          "col-2": "",
+          "col-3": ""
+        }
+      },
+      {
+        "id": "test-sub3",
+        "values": {
+          "col-1": "Test Sub3",
+          "col-2": "",
+          "col-3": ""
+        }
+      },
+      {
+        "id": "test-sub4",
+        "values": {
+          "col-1": "Test Sub4",
+          "col-2": "",
+          "col-3": ""
+        }
+      }
+    ],
+    "sourceDocId": "getting-started",
+    "sourceKind": "table"
+  }
+]

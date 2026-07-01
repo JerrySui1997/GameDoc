@@ -1,0 +1,202 @@
+{
+  "id": "tajanda-manor-v5-brief",
+  "title": "Tajanda Manor V5 · Exterior & Atmosphere Brief",
+  "parentId": "tajanda-manor",
+  "blocks": [
+    {
+      "hero": {
+        "eyebrow": "Concept Art Brief · Exterior Direction",
+        "title": "Tajanda Manor · The Dreamcatcher Sanctum",
+        "subtitle": "An Italianate scholar manor frozen in time, standing at No.27 inside a modern north-district neighborhood of New Miri.",
+        "tone": "accent"
+      }
+    },
+    {
+      "badges": {
+        "label": "At a glance",
+        "items": [
+          { "label": "Location: North Old District · No.27", "tone": "blue" },
+          { "label": "Style: 19th-century Italianate manor", "tone": "amber" },
+          { "label": "Resident: Arthur Crowe + drifters", "tone": "slate" },
+          { "label": "Core contrast: old manor vs modern street", "tone": "purple" }
+        ]
+      }
+    },
+    { "labeled": { "label": "Logline", "value": "A cultured Italianate manor sits quietly in the center of an ordinary city block; inside, the afterimage of Tajanda's impossible ascension still leaks into modern life.", "highlight": true, "multiline": true } },
+
+    { "h2": "Worldview Update (Read First)" },
+    {
+      "cards": {
+        "label": "Foundational settings",
+        "columns": 2,
+        "items": [
+          {
+            "eyebrow": "01 · Character premise",
+            "title": "Tajanda is a Western prodigy scholar",
+            "body": "He comes from a Western magical lineage but reverse-engineers Eastern cultivation with strict academic methods: notebooks, experiments, and archival logic. He eventually survives a ninefold tribulation and ascends, tearing open a cross-system rift.",
+            "tone": "blue"
+          },
+          {
+            "eyebrow": "02 · Architecture premise",
+            "title": "This is a manor, not a wizard tower",
+            "body": "Main body is 2 floors + attic in horizontal Italianate massing: low-pitched roof, broad eaves with brackets, stucco walls, tall arched windows, and a square belvedere.",
+            "tone": "green"
+          },
+          {
+            "eyebrow": "03 · Urban premise",
+            "title": "Embedded in a normal city street",
+            "body": "The manor is not on a cliff or in a forest. It is surrounded by ordinary two-story homes, convenience stores, parked cars, utility poles, and old neighborhood routines.",
+            "tone": "orange"
+          },
+          {
+            "eyebrow": "04 · Present-day stance",
+            "title": "Arthur lives with distance and pragmatism",
+            "body": "Arthur does not continue Tajanda's research. He simply occupies an uncleaned scholar ruin and uses what remains to protect people from failed by-products of old experiments.",
+            "tone": "slate"
+          }
+        ]
+      }
+    },
+
+    { "h2": "Exterior & Urban Context" },
+    {
+      "cards": {
+        "label": "Street-level composition",
+        "columns": 3,
+        "items": [
+          {
+            "eyebrow": "Approach",
+            "title": "Old-photo silhouette in a color city",
+            "body": "From far away, No.27 rises one full level above neighboring 1980s-90s houses. The belvedere and low roofline read immediately as an architectural outsider.",
+            "tone": "purple"
+          },
+          {
+            "eyebrow": "Boundary",
+            "title": "Rust iron and ivy-bricked enclosure",
+            "body": "A 1.8m red-brick wall with black rusted ironwork frames the front yard. Ivy partially overtakes the wall and can emit faint cyan phosphorescence at night.",
+            "tone": "sky"
+          },
+          {
+            "eyebrow": "Daily traces",
+            "title": "Lived-in, never restored",
+            "body": "Mailbox overstuffed with decades of flyers, rope-tied gate, old bicycle, random parcels, and temporary potted succulents over a boarded well keep the scene grounded and humane.",
+            "tone": "amber"
+          }
+        ]
+      }
+    },
+
+    { "h2": "Visible Eastern Cultivation Traces" },
+    {
+      "badges": {
+        "label": "Structural marks (visible outside)",
+        "items": [
+          { "label": "Cinnabar bagua over the door pediment", "tone": "red" },
+          { "label": "Peachwood sword replacing lightning rod", "tone": "orange" },
+          { "label": "One bracket carved as seal script", "tone": "yellow" },
+          { "label": "Phosphor vines on stucco wall", "tone": "sky" }
+        ]
+      }
+    },
+    {
+      "cards": {
+        "label": "Distribution rule",
+        "columns": 3,
+        "items": [
+          {
+            "eyebrow": "Density",
+            "title": "Highest on 2F lab zone",
+            "body": "Trace density decays from the second-floor experiment area to other main rooms, and is nearly absent in side wings.",
+            "tone": "slate"
+          },
+          {
+            "eyebrow": "Language",
+            "title": "Collected samples, not themed decor",
+            "body": "Eastern elements read like a 19th-century scholar's research artifacts placed among Italianate furnishings, never as a full 'Eastern room'.",
+            "tone": "blue"
+          },
+          {
+            "eyebrow": "Invisible signals",
+            "title": "Occasional atmospheric residues",
+            "body": "Pale red mist from the belvedere opening at night; brief unnatural quiet during peach blossom season; street animals stopping at the gate then avoiding entry.",
+            "tone": "purple"
+          }
+        ]
+      }
+    },
+
+    { "h2": "Lighting & Color Temperature" },
+    {
+      "ol": [
+        "City night base: sodium street lights around 2200K, cool store LEDs around 6500K, and warm residential windows near 3000K.",
+        "Manor behavior: mostly dark mass with only one or two warm windows (kitchen, clinic, occasional attic points).",
+        "Twilight signature: strongest story moment; the peachwood sword silhouette is most legible against the late magenta sky.",
+        "Interior modernization clue: antique brass gas lamps rewired with modern electric bulbs by Arthur."
+      ]
+    },
+    {
+      "status": {
+        "label": "Primary mood",
+        "value": "Quiet urban uncanny, never spectacle",
+        "tone": "blue"
+      }
+    },
+
+    { "h2": "Palette Reference" },
+    {
+      "swatch": {
+        "label": "Exterior master palette",
+        "colors": [
+          { "hex": "#D9C7A0", "name": "Aged Stucco" },
+          { "hex": "#B89968", "name": "Terra Ocher" },
+          { "hex": "#7A6E5D", "name": "Weathered Umber" },
+          { "hex": "#5B4636", "name": "Aged Walnut" },
+          { "hex": "#8C6A3E", "name": "Tarnished Brass" },
+          { "hex": "#C9A66B", "name": "Candle Amber" },
+          { "hex": "#3D8FB8", "name": "Dream Cyan" },
+          { "hex": "#9B7BB8", "name": "Residual Violet" },
+          { "hex": "#8C2E2E", "name": "Cinnabar" },
+          { "hex": "#D4A574", "name": "Aged Rice Paper" },
+          { "hex": "#3A5F3A", "name": "Moss Jade" },
+          { "hex": "#2D3142", "name": "Urban Night" }
+        ]
+      }
+    },
+
+    { "h2": "DOs & DON'Ts" },
+    {
+      "cards": {
+        "label": "Art direction guardrails",
+        "columns": 2,
+        "items": [
+          {
+            "eyebrow": "DO",
+            "title": "Keep the Italianate identity intact",
+            "body": "Horizontal symmetry, low roof with decorative brackets, stucco age, arched windows, and central belvedere must remain the core architectural language.",
+            "tone": "green"
+          },
+          {
+            "eyebrow": "DON'T",
+            "title": "No Gothic and no cliff tower fantasy",
+            "body": "Ban spires, flying buttresses, gargoyles, stained-glass rose windows, and isolated mountain-tower framing.",
+            "tone": "red"
+          },
+          {
+            "eyebrow": "DO",
+            "title": "Show modern life frictions",
+            "body": "Utility poles, convenience-store spill light, wired lamp retrofits, tied gate rope, and neglected mail establish the current lived reality.",
+            "tone": "sky"
+          },
+          {
+            "eyebrow": "DON'T",
+            "title": "No flashy cultivation VFX",
+            "body": "Avoid glowing talismans, floating blades, and active spell circles. Eastern traces should feel extinguished, archived, and residue-like.",
+            "tone": "orange"
+          }
+        ]
+      }
+    },
+
+    { "tags": { "label": "Reference direction", "tone": "slate", "items": ["Edward Hopper · House by the Railroad", "Henry James adaptation mood", "Italianate villa precedents", "Old house enclosed by modern city fabric", "Frozen private museum inhabited by a gentle outsider"] } }
+  ]
+}

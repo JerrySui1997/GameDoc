@@ -1,0 +1,22 @@
+{
+  "name": "gamedoc-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for the nightmare-docs website, so AI/Claude can query (and author docs in) game-design content token-efficiently instead of ingesting whole files.",
+  "bin": {
+    "gamedoc-mcp": "src/server.ts"
+  },
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "inspect": "mcp-inspector tsx src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "zod": "^4.4.3"
+  }
+}

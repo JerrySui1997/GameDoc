@@ -1,0 +1,39 @@
+[
+  {
+    "id": "nightmare",
+    "name": "Nightmare",
+    "description": "Creature record: tier, evidence, behavior, signature mechanic and design contract.",
+    "badgeKey": "tier",
+    "fields": [
+      {
+        "key": "tier",
+        "label": "Tier",
+        "kind": "select",
+        "options": ["Tier 1", "Tier 2", "Tier 3", "Tier 2-3"],
+        "toneMap": { "Tier 1": "green", "Tier 2": "yellow", "Tier 3": "red", "Tier 2-3": "orange" }
+      },
+      { "key": "teaches", "label": "Teaches", "kind": "text" },
+      { "key": "evidence", "label": "Evidence", "kind": "badges" },
+      {
+        "key": "personality",
+        "label": "Personality",
+        "kind": "select",
+        "options": ["SHY", "MISCHIEF", "AGGRESSIVE"]
+      },
+      { "key": "hunt", "label": "Hunt", "kind": "tags", "tagsTone": "slate" },
+      {
+        "key": "haunt",
+        "label": "Haunt",
+        "kind": "select",
+        "options": ["Instant", "Delayed", "Multi-Target", "none"]
+      },
+      { "key": "states", "label": "States", "kind": "longtext" },
+      { "key": "signature", "label": "Signature", "kind": "text", "highlight": true },
+      { "key": "capture", "label": "Capture", "kind": "longtext" },
+      { "key": "fail-looks-like", "label": "Fail looks like", "kind": "text" },
+      { "key": "persona-fixed", "label": "Persona-Fixed — Contract", "kind": "tags", "tagsTone": "slate" },
+      { "key": "persona-free", "label": "Persona-Free — Design Space", "kind": "tags", "tagsTone": "sky" },
+      { "key": "recombines", "label": "Recombines lessons from", "kind": "refs" }
+    ]
+  }
+]

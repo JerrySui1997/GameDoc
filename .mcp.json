@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gamedoc": {
+      "command": "npx",
+      "args": ["-y", "tsx", "D:\\GameDoc\\mcp\\src\\server.ts"]
+    }
+  }
+}

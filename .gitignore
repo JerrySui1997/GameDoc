@@ -1,0 +1,25 @@
+# dependencies (root + mcp/ subproject both matched by the bare rule)
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# typescript build cache
+*.tsbuildinfo
+
+# env / secrets — keep .env.example tracked
+.env
+.env.local
+.env.*.local
+
+# local content snapshots (left on disk; git history is the version trail from here on)
+src/data/docs/content.backup-*.json
+
+# claude local machine config
+.claude/settings.local.json
+
+# os
+.DS_Store
+Thumbs.db
