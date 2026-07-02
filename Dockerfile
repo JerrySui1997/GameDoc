@@ -20,13 +20,15 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 
-# The custom server (server/index.ts) runs the TypeScript sources via tsx, so we
-# ship node_modules + the source tree, not just .next. src/data is the seed for a
-# fresh volume; at runtime the app reads/writes DATA_DIR (the mounted volume).
+# The custom server is precompiled to a single dist/server.js (esbuild, CJS) at
+# build time — no tsx/transpile on the runtime critical path, so boot is faster.
+# We still ship node_modules (the server's deps are externalized) + .next, plus
+# src because src/data is the seed for a fresh volume; at runtime the app
+# reads/writes DATA_DIR (the mounted volume).
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
+COPY --from=build /app/dist ./dist
 COPY --from=build /app/src ./src
-COPY --from=build /app/server ./server
 COPY --from=build /app/next.config.ts ./next.config.ts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/package.json ./package.json

@@ -1,5 +1,5 @@
 import { TemplateCollectionSchema, type PageTemplate } from '@/lib/templates/types';
-import { readJsonFile, writeJsonFile } from '@/lib/store/json';
+import { readJsonCached, writeJsonFile } from '@/lib/store/json';
 import { dataFile } from '@/lib/store/paths';
 
 // Server-only store for page templates. Mirrors the docs store: reads/writes a
@@ -7,9 +7,9 @@ import { dataFile } from '@/lib/store/paths';
 
 const CONTENT_FILE = dataFile('templates');
 
-/** Read and validate all templates from disk. */
+/** Read and validate all templates from disk (memoized by file mtime). */
 export async function readTemplates(): Promise<PageTemplate[]> {
-  return TemplateCollectionSchema.parse(await readJsonFile(CONTENT_FILE));
+  return readJsonCached(CONTENT_FILE, (raw) => TemplateCollectionSchema.parse(raw));
 }
 
 /** Validate and persist the full template collection to disk. */

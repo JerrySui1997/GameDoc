@@ -6,6 +6,9 @@ node_modules/
 out/
 next-env.d.ts
 
+# precompiled production server (esbuild output — rebuilt by `npm run build`)
+dist/
+
 # typescript build cache
 *.tsbuildinfo
 

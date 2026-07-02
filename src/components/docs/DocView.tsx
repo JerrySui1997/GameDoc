@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useDocs } from './DocsProvider';
 import { InlinePrompt, slugify } from './inline';
 import { RelatedPanel } from './RelatedPanel';
+import { StaticDocBody } from './StaticDocBody';
 
 // The collaborative editor talks to the y-websocket relay from the browser only,
 // so it must never run on the server. Loading it ssr:false keeps DocView (and the
@@ -28,6 +29,20 @@ export function DocView({ docId }: { docId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [addingChild, setAddingChild] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Paint the page's stored content instantly (server-rendered), then swap to the
+  // live collaborative editor once its Yjs room has content to show. Kills the
+  // "gray box → content pops in late" waterfall. Reset per page via the `key` on
+  // DocView (see docs/[id]/page.tsx).
+  const [live, setLive] = useState(false);
+  const handleLive = useCallback(() => setLive(true), []);
+  // Safety net: reveal the editor even if collab never signals ready (relay slow
+  // or unreachable), so the page is never stuck showing only the read-only paint.
+  // In the normal case onLive fires well under a second and this never matters.
+  useEffect(() => {
+    if (live) return;
+    const t = setTimeout(() => setLive(true), 5000);
+    return () => clearTimeout(t);
+  }, [live]);
 
   if (!doc) {
     return (
@@ -130,7 +145,19 @@ export function DocView({ docId }: { docId: string }) {
         </div>
       )}
 
-      <LiveEditor docId={doc.id} />
+      {/* Static paint and live editor share one grid cell so it sizes to the
+          taller of the two; the editor stays mounted (connecting) but invisible
+          until it's ready, then the static copy is dropped. */}
+      <div className="grid">
+        <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
+          <LiveEditor docId={doc.id} onLive={handleLive} />
+        </div>
+        {!live && (
+          <div className="col-start-1 row-start-1">
+            <StaticDocBody title={doc.title} body={doc.body} />
+          </div>
+        )}
+      </div>
 
       <RelatedPanel docId={doc.id} />
 

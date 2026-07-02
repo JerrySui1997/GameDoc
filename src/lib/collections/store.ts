@@ -1,5 +1,5 @@
 import { CollectionCollectionSchema, type Collection } from '@/lib/collections/types';
-import { readJsonFile, writeJsonFile } from '@/lib/store/json';
+import { readJsonCached, writeJsonFile } from '@/lib/store/json';
 import { dataFile } from '@/lib/store/paths';
 
 // Server-only store for collections. Mirrors the docs/templates stores:
@@ -8,9 +8,9 @@ import { dataFile } from '@/lib/store/paths';
 
 const CONTENT_FILE = dataFile('collections');
 
-/** Read and validate all collections from disk. */
+/** Read and validate all collections from disk (memoized by file mtime). */
 export async function readCollections(): Promise<Collection[]> {
-  return CollectionCollectionSchema.parse(await readJsonFile(CONTENT_FILE));
+  return readJsonCached(CONTENT_FILE, (raw) => CollectionCollectionSchema.parse(raw));
 }
 
 /** Validate and persist the full collection list to disk. */
