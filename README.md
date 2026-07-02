@@ -15,7 +15,9 @@ collaboration relay runs alongside it:
 
 `src/data/docs/content.json` is the **canonical source of truth** (SSR, search, scripts, the MCP
 server). The relay seeds each Yjs room from it and debounce-writes edits back. CRDT durability lives
-in LevelDB at `~/.gamedoc/collab-db` (outside the repo).
+in LevelDB at `~/.gamedoc/collab-db` (outside the repo). In production these two processes **merge
+into one** ([server/index.ts](server/index.ts)) so a single host with one persistent volume owns all
+state — see [Deploy](#deploy-railway).
 
 ## Quickstart
 
@@ -37,7 +39,7 @@ build-time `NEXT_PUBLIC_*` var, so rebuild after changing it.
 | `npm run dev`        | Next.js dev server only                              |
 | `npm run dev:collab` | Collab WebSocket relay only                          |
 | `npm run build`      | Production build (`next build`)                      |
-| `npm run start`      | Serve the production build                           |
+| `npm run start`      | Serve production — Next + collab in one process      |
 | `npm run typecheck`  | `tsc --noEmit`                                        |
 | `npm run validate`   | Validate content (`scripts/validate-nightmares.ts`)  |
 | `npm run crossref`   | Cross-reference audit (`scripts/crossref.ts`)        |
@@ -55,3 +57,23 @@ Work on feature branches → PR into `develop`. Promote `develop` → `main` for
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR and push to `main`/`develop`:
 install, typecheck, content validation, cross-reference audit, and a production build.
+
+## Deploy (Railway)
+
+Production runs as a **single Railway service**: [`server/index.ts`](server/index.ts) serves the
+built Next app and hosts the Yjs relay on `/collab`, so one service with one volume owns all mutable
+state. The image is built from the [`Dockerfile`](Dockerfile); service config lives in
+[`railway.json`](railway.json).
+
+One-time setup in the Railway dashboard:
+
+1. **New Project → Deploy from GitHub repo** → `JerrySui1997/GameDoc`.
+2. **Variables:** `DATA_DIR=/data`, `COLLAB_DB_DIR=/data/collab-db`, `HOST=0.0.0.0`. Railway injects
+   `PORT`; leave `NEXT_PUBLIC_COLLAB_URL` unset so the browser uses the same-origin `/collab`.
+3. **Volume:** attach one mounted at `/data` — it holds the JSON collections and LevelDB. The app
+   seeds it from the image on first boot.
+4. **Auto-deploy:** point the service at `develop` for continuous deploys.
+
+Tagged releases deploy to production: pushing a `v*` tag runs
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), which needs a `RAILWAY_TOKEN` secret
+and a `RAILWAY_SERVICE` repo variable.

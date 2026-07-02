@@ -1,0 +1,29 @@
+name: Deploy (production)
+
+# Production deploys are cut from version tags on main (v0.1.0, v1.2.3, …).
+# Day-to-day `develop` deploys are handled by Railway's native GitHub
+# integration (enable auto-deploy on the develop branch in the Railway
+# dashboard) and don't need a workflow.
+#
+# Requires two repo settings:
+#   • secret   RAILWAY_TOKEN    — a Railway project token
+#   • variable RAILWAY_SERVICE  — the service name to deploy
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+      - name: Deploy to Railway
+        run: railway up --service "${{ vars.RAILWAY_SERVICE }}" --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

@@ -1,12 +1,12 @@
-import path from 'path';
 import { CollectionCollectionSchema, type Collection } from '@/lib/collections/types';
 import { readJsonFile, writeJsonFile } from '@/lib/store/json';
+import { dataFile } from '@/lib/store/paths';
 
 // Server-only store for collections. Mirrors the docs/templates stores:
-// reads/writes a validated JSON collection on disk through the shared
+// reads/writes a validated JSON collection under DATA_DIR through the shared
 // atomic/serialized json store so concurrent saves can't corrupt the file.
 
-const CONTENT_FILE = path.join(process.cwd(), 'src', 'data', 'collections', 'content.json');
+const CONTENT_FILE = dataFile('collections');
 
 /** Read and validate all collections from disk. */
 export async function readCollections(): Promise<Collection[]> {
