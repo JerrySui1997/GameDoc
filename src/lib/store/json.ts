@@ -39,6 +39,48 @@ export async function readJsonFile(file: string): Promise<unknown> {
   return JSON.parse(raw);
 }
 
+// ── Cached, validated reads ─────────────────────────────────────────────────
+// Reading + JSON-parsing + Zod-validating a collection on *every* SSR render is
+// wasteful: the docs collection alone is ~95 KB / 40 nested pages, and the root
+// layout re-reads all three on every full page load. Cache the fully-transformed
+// (validated) value keyed by the file's mtime + size, so an unchanged file is
+// served straight from memory.
+//
+// The mtime+size guard (one cheap stat) — rather than an in-process
+// invalidation flag — is deliberate: in dev the collab relay writes content.json
+// from a *separate* process, so we must notice out-of-band writes. On write the
+// file's mtime changes, so the very next read re-validates automatically.
+type CacheEntry = { mtimeMs: number; size: number; value: unknown };
+const readCache = new Map<string, CacheEntry>();
+
+/**
+ * Like `readJsonFile` + `transform`, but memoized by the file's mtime+size.
+ * `transform` (typically a Zod `.parse`) runs only when the file has changed.
+ *
+ * The returned value is shared across callers for a given file version, so it
+ * MUST be treated as read-only. Array results are returned as a fresh shallow
+ * copy (cheap) so callers can safely `push`/`sort`/`splice` the top level; their
+ * *elements* are still shared, which suits this codebase's immutable
+ * read → build-new → write pattern (elements are replaced, never mutated).
+ */
+export async function readJsonCached<T>(file: string, transform: (raw: unknown) => T): Promise<T> {
+  const stat = await fs.stat(file).catch(() => null);
+  if (!stat) {
+    // Missing/unstattable — read directly so the caller sees the real ENOENT.
+    return transform(JSON.parse(await fs.readFile(file, 'utf8')));
+  }
+  const hit = readCache.get(file);
+  const value =
+    hit && hit.mtimeMs === stat.mtimeMs && hit.size === stat.size
+      ? (hit.value as T)
+      : await (async () => {
+          const parsed = transform(JSON.parse(await fs.readFile(file, 'utf8')));
+          readCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, value: parsed });
+          return parsed;
+        })();
+  return Array.isArray(value) ? (([...value] as unknown) as T) : value;
+}
+
 /** Atomically and serially persist `data` as pretty-printed JSON to `file`. */
 export async function writeJsonFile(file: string, data: unknown): Promise<void> {
   const body = `${JSON.stringify(data, null, 2)}\n`;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useDocs } from './DocsProvider';
 import { useYDoc } from './useYDoc';
-import { getMeta, ySetTitle } from '@/lib/docs/ydoc';
+import { getMeta, isYDocEmpty, ySetTitle } from '@/lib/docs/ydoc';
 import { PageEditor } from './PageEditor';
 import { useIdentity } from './identity';
 import { NamePrompt, PresenceAvatars, useRemoteUsers } from './Presence';
@@ -12,7 +12,7 @@ import { NamePrompt, PresenceAvatars, useRemoteUsers } from './Presence';
 // page's Yjs room. Loaded client-only (ssr:false) by DocView so the browser-only
 // y-websocket connection never touches the server render.
 
-export function LiveEditor({ docId }: { docId: string }) {
+export function LiveEditor({ docId, onLive }: { docId: string; onLive?: () => void }) {
   const collab = useYDoc(docId);
   const { getById, patchLocalDoc } = useDocs();
   const { identity, ready: identityReady, save: saveIdentity } = useIdentity();
@@ -32,6 +32,22 @@ export function LiveEditor({ docId }: { docId: string }) {
     update();
     return () => meta.unobserve(update);
   }, [collab]);
+
+  // Tell DocView it can drop the static placeholder once this editor has content
+  // to show — either the room has synced, or the (pooled) Y.Doc already carries
+  // blocks from a prior visit. The doc's own update stream is the fallback so the
+  // first content flips it even before the provider's `synced` flag settles.
+  useEffect(() => {
+    const c = collab;
+    if (!c || !onLive) return;
+    const fireIfReady = () => {
+      if (c.synced || !isYDocEmpty(c.doc)) { onLive(); return true; }
+      return false;
+    };
+    if (fireIfReady()) return;
+    c.doc.on('update', fireIfReady);
+    return () => c.doc.off('update', fireIfReady);
+  }, [collab, onLive]);
 
   function onTitle(value: string) {
     setTitle(value);

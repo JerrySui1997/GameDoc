@@ -62,8 +62,10 @@ install, typecheck, content validation, cross-reference audit, and a production 
 
 Production runs as a **single Railway service**: [`server/index.ts`](server/index.ts) serves the
 built Next app and hosts the Yjs relay on `/collab`, so one service with one volume owns all mutable
-state. The image is built from the [`Dockerfile`](Dockerfile); service config lives in
-[`railway.json`](railway.json).
+state. The image is built from the [`Dockerfile`](Dockerfile) — which precompiles the server to
+`dist/server.js` (esbuild) so there's no runtime transpile on boot. Service config lives in
+[`railway.json`](railway.json), which also pins a `/api/health` healthcheck, disables app-sleeping
+(so there are no idle cold starts), and runs a single replica.
 
 One-time setup in the Railway dashboard:
 

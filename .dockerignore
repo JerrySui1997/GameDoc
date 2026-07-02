@@ -1,6 +1,7 @@
 # Build artifacts & deps (reinstalled/rebuilt inside the image)
 node_modules
 .next
+dist
 
 # VCS & CI metadata
 .git

@@ -1,5 +1,5 @@
 import { DocCollectionSchema, type DocNode } from '@/lib/schema/doc';
-import { readJsonFile, writeJsonFile } from '@/lib/store/json';
+import { readJsonCached, writeJsonFile } from '@/lib/store/json';
 import { dataFile } from '@/lib/store/paths';
 
 // Server-only store. Reads and writes the docs collection from disk so the
@@ -9,9 +9,9 @@ import { dataFile } from '@/lib/store/paths';
 
 const CONTENT_FILE = dataFile('docs');
 
-/** Read and validate all docs from disk. */
+/** Read and validate all docs from disk (memoized by file mtime — see readJsonCached). */
 export async function readDocs(): Promise<DocNode[]> {
-  return DocCollectionSchema.parse(await readJsonFile(CONTENT_FILE));
+  return readJsonCached(CONTENT_FILE, (raw) => DocCollectionSchema.parse(raw));
 }
 
 /** Validate and persist the full docs collection to disk. */
