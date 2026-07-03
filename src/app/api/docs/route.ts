@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readDocs, writeDocs } from '@/lib/docs/store';
 import { DocNodeSchema } from '@/lib/schema/doc';
 import { agentBus } from '@/lib/agent/bus';
+import { checkAgentToken } from '@/lib/auth/agentToken';
 
 export async function GET() {
   const docs = await readDocs();
@@ -9,6 +10,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const authError = checkAgentToken(request);
+  if (authError) return authError;
+
   const parsed = DocNodeSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });

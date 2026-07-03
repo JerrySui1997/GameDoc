@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { agentBus } from '@/lib/agent/bus';
 import { DocNodeSchema } from '@/lib/schema/doc';
+import { checkAgentToken } from '@/lib/auth/agentToken';
 
 // Ingest endpoint the MCP server POSTs to around each doc write. We validate the
 // shape here (not just trust the caller) and fan it out to subscribed tabs via
@@ -22,6 +23,9 @@ const EventSchema = z.discriminatedUnion('type', [
 ]);
 
 export async function POST(request: Request) {
+  const authError = checkAgentToken(request);
+  if (authError) return authError;
+
   let body: unknown;
   try {
     body = await request.json();

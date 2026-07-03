@@ -10,6 +10,7 @@ import type { DocNode } from './data.js';
 
 const APP_URL = (process.env.GAMEDOC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 const AGENT_LABEL = process.env.GAMEDOC_AGENT_LABEL ?? 'AI Agent';
+const AGENT_TOKEN = process.env.GAMEDOC_AGENT_TOKEN;
 
 // Docs this process has touched, so we can send a clean edit.stop for each on
 // shutdown. The website also TTL-expires presence as a fallback if we're killed
@@ -23,9 +24,11 @@ type Payload =
 
 async function post(payload: Payload): Promise<void> {
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (AGENT_TOKEN) headers.Authorization = `Bearer ${AGENT_TOKEN}`;
     await fetch(`${APP_URL}/api/agent/events`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
       // Don't let a hung dev server stall an MCP tool call.
       signal: AbortSignal.timeout(1500),

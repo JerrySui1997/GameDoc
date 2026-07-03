@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readDocs, writeDocs } from '@/lib/docs/store';
 import { DocNodeSchema } from '@/lib/schema/doc';
 import { agentBus } from '@/lib/agent/bus';
+import { checkAgentToken } from '@/lib/auth/agentToken';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,6 +14,9 @@ type RouteContext = { params: Promise<{ id: string }> };
 const DocPatchSchema = DocNodeSchema.partial().omit({ id: true });
 
 export async function PUT(request: Request, { params }: RouteContext) {
+  const authError = checkAgentToken(request);
+  if (authError) return authError;
+
   const { id } = await params;
   const parsed = DocNodeSchema.safeParse({ ...(await request.json()), id });
   if (!parsed.success) {
@@ -39,6 +43,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 }
 
 export async function PATCH(request: Request, { params }: RouteContext) {
+  const authError = checkAgentToken(request);
+  if (authError) return authError;
+
   const { id } = await params;
   const parsed = DocPatchSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -69,7 +76,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   return NextResponse.json(full);
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const authError = checkAgentToken(request);
+  if (authError) return authError;
+
   const { id } = await params;
   const docs = await readDocs();
   const target = docs.find((d) => d.id === id);

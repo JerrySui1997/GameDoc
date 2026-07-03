@@ -3,6 +3,26 @@
     "gamedoc": {
       "command": "npx",
       "args": ["-y", "tsx", "D:\\GameDoc\\mcp\\src\\server.ts"]
+    },
+    "gamedoc-live": {
+      "command": "npx",
+      "args": ["-y", "tsx", "D:\\GameDoc\\mcp\\src\\server.ts"],
+      "env": {
+        "GAMEDOC_APP_URL": "https://gamedoc-production.up.railway.app",
+        "GAMEDOC_COLLAB_URL": "wss://gamedoc-production.up.railway.app/collab",
+        "GAMEDOC_AGENT_TOKEN": "${GAMEDOC_AGENT_TOKEN}",
+        "GAMEDOC_LIVE": "1"
+      }
+    },
+    "gamedoc-live-dryrun": {
+      "command": "npx",
+      "args": ["-y", "tsx", "D:\\GameDoc\\mcp\\src\\server.ts"],
+      "env": {
+        "GAMEDOC_APP_URL": "http://localhost:3000",
+        "GAMEDOC_COLLAB_URL": "ws://localhost:1234",
+        "GAMEDOC_AGENT_TOKEN": "test-local-secret-123",
+        "GAMEDOC_LIVE": "1"
+      }
     }
   }
 }

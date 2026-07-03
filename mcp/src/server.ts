@@ -21,7 +21,9 @@ import {
   loadDocs,
   loadTemplates,
   loadCollections,
-  saveDocs,
+  createDoc,
+  updateDoc,
+  deleteDoc,
   nextOrder,
   validateDoc,
   buildDocTree,
@@ -37,6 +39,13 @@ import {
   makeAnnotation,
 } from './data.js';
 import { notifyStart, notifyCommit, installStopOnExit } from './notify.js';
+
+// GAMEDOC_LIVE=1 (set by the .mcp.json "gamedoc-live" registration) means
+// this server's writes land on a deployed site, not the local repo — every
+// mutating tool's title gets an unmistakable prefix so it's never confused
+// for the local "gamedoc" tools in Claude Code's tool list.
+const LIVE = process.env.GAMEDOC_LIVE === '1';
+const liveTitle = (title: string) => (LIVE ? `⚠ LIVE: ${title}` : title);
 
 const server = new McpServer({ name: 'gamedoc', version: '0.1.0' });
 
@@ -156,7 +165,7 @@ server.registerTool(
   'gamedoc_get_doc',
   {
     title: 'Get doc page',
-    description: 'One documentation page by id. Default returns readable plain text (widgets/dividers stripped); pass format="raw" for the stored body string verbatim.',
+    description: 'One documentation page by id. Default returns readable plain text (widgets/dividers stripped); pass format="raw" for the stored body string verbatim — use "raw" before editing a page that may have widgets (characterCard, refs, hexelMap, etc), since that\'s the only format that shows them.',
     inputSchema: {
       id: z.string().describe('Doc slug id, e.g. "core-concepts".'),
       format: z.enum(['text', 'raw']).default('text').describe('"text" (default) = clean plain text; "raw" = stored body string.'),
@@ -203,12 +212,16 @@ server.registerTool(
 // ── Docs (write) ─────────────────────────────────────────────────────────
 // Bodies accept plain markdown — the website's parser turns `#`, `-`, `1.`,
 // `>` into the matching block types — so you can author a page as markdown text
-// and don't need to hand-write the v2 block JSON.
+// and don't need to hand-write the v2 block JSON. Caveat: a markdown body
+// REPLACES the whole body. If the page has widget blocks (characterCard,
+// refs, hexelMap, etc — check with gamedoc_get_doc format:"raw" first), a
+// plain-markdown update that doesn't already contain them will be refused
+// unless you pass dropWidgets:true.
 
 server.registerTool(
   'gamedoc_create_doc',
   {
-    title: 'Create doc page',
+    title: liveTitle('Create doc page'),
     description: 'Create a new documentation page. The body is plain markdown (headings, bullets, numbered lists, quotes are parsed into blocks). Fails if the id already exists — use gamedoc_update_doc to edit.',
     inputSchema: {
       id: z.string().describe('Stable slug id, e.g. "new-miri". Lowercase letters, numbers, hyphens.'),
@@ -227,16 +240,16 @@ server.registerTool(
     const result = validateDoc({ id, title, parentId: parent, order: order ?? nextOrder(docs, parent), body });
     if (!result.ok) return fail(`Invalid doc — ${result.error}`);
     await notifyStart(id);
-    await saveDocs([...docs, result.doc]);
-    await notifyCommit('created', id, result.doc);
-    return json({ action: 'created', doc: result.doc });
+    const doc = await createDoc(result.doc);
+    await notifyCommit('created', id, doc);
+    return json({ action: 'created', doc });
   },
 );
 
 server.registerTool(
   'gamedoc_update_doc',
   {
-    title: 'Update doc page',
+    title: liveTitle('Update doc page'),
     description: 'Update an existing doc page by id. Only the fields you pass change; omit the rest. Pass parentId:null to move a page to the top level. Body is plain markdown.',
     inputSchema: {
       id: z.string().describe('Id of the page to update.'),
@@ -244,29 +257,15 @@ server.registerTool(
       body: z.string().optional().describe('Replacement body as markdown (pass "" to clear).'),
       parentId: z.string().nullable().optional().describe('New parent id, or null for top-level. Omit to keep current.'),
       order: z.number().int().nonnegative().optional(),
+      dropWidgets: z.boolean().default(false).describe('Confirm that this body update may remove existing widget blocks (characterCard, refs, hexelMap, etc). Required if the new body would drop any — see the error for which ones.'),
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
-  async ({ id, title, body, parentId, order }) => {
-    const docs = await loadDocs();
-    const index = docs.findIndex((d) => d.id === id);
-    if (index === -1) return fail(`No doc "${id}". Use gamedoc_list_docs to see valid ids.`);
-    const current = docs[index];
-    const parent = parentId === undefined ? current.parentId : parentId;
-    if (parent === id) return fail('A doc cannot be its own parent.');
-    if (parent && !docs.some((d) => d.id === parent)) return fail(`Parent "${parent}" not found.`);
-    const result = validateDoc({
-      id,
-      title: title ?? current.title,
-      parentId: parent,
-      order: order ?? current.order,
-      body: body ?? current.body,
-    });
-    if (!result.ok) return fail(`Invalid doc — ${result.error}`);
-    const next = [...docs];
-    next[index] = result.doc;
+  async ({ id, title, body, parentId, order, dropWidgets }) => {
+    if (parentId === id) return fail('A doc cannot be its own parent.');
     await notifyStart(id);
-    await saveDocs(next);
+    const result = await updateDoc(id, { title, body, parentId, order }, { dropWidgets });
+    if (!result.ok) return fail(result.error);
     await notifyCommit('updated', id, result.doc);
     return json({ action: 'updated', doc: result.doc });
   },
@@ -275,22 +274,21 @@ server.registerTool(
 server.registerTool(
   'gamedoc_delete_doc',
   {
-    title: 'Delete doc page',
+    title: liveTitle('Delete doc page'),
     description: 'Delete a documentation page by id. Any child pages are re-parented to the deleted page\'s parent so none are orphaned (same behavior as the website).',
     inputSchema: { id: z.string().describe('Id of the page to delete.') },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
   },
   async ({ id }) => {
-    const docs = await loadDocs();
-    const target = docs.find((d) => d.id === id);
-    if (!target) return fail(`No doc "${id}". Use gamedoc_list_docs to see valid ids.`);
-    const reparented = docs.filter((d) => d.parentId === id).map((d) => d.id);
-    const next = docs
-      .filter((d) => d.id !== id)
-      .map((d) => (d.parentId === id ? { ...d, parentId: target.parentId } : d));
-    await saveDocs(next);
+    const result = await deleteDoc(id);
+    if (!result.ok) return fail(result.error);
     await notifyCommit('deleted', id);
-    return json({ action: 'deleted', id, reparentedChildren: reparented });
+    return json({
+      action: 'deleted',
+      id,
+      reparentedChildren: result.reparentedChildren,
+      ...(result.liveRoomWarning ? { liveRoomWarning: result.liveRoomWarning } : {}),
+    });
   },
 );
 
@@ -350,7 +348,7 @@ server.registerTool(
 server.registerTool(
   'gamedoc_annotate_space',
   {
-    title: 'Annotate space',
+    title: liveTitle('Annotate space'),
     description: 'Refine a Hexel Map\'s inferred meaning by writing one sparse annotation, anchored to a cell (x,y). Pin a name/kind, confirm a guess, suppress a false relation, or merge two regions (with withAnchor). Annotations override the inference and persist — the same loosely-typed loop the human editor uses.',
     inputSchema: {
       id: z.string().describe('Doc id of the page with the hexel map.'),
@@ -370,9 +368,8 @@ server.registerTool(
   },
   async ({ id, anchor, kind, name, op, withAnchor, links, blockId }) => {
     const docs = await loadDocs();
-    const index = docs.findIndex((d) => d.id === id);
-    if (index === -1) return fail(`No doc "${id}". Use gamedoc_list_docs to see valid ids.`);
-    const doc = docs[index];
+    const doc = docs.find((d) => d.id === id);
+    if (!doc) return fail(`No doc "${id}". Use gamedoc_list_docs to see valid ids.`);
     const maps = docHexelScenes(doc.body);
     if (!maps.length) return fail(`Doc "${id}" has no hexel map.`);
     const target = blockId ? maps.find((m) => m.blockId === blockId) : maps[0];
@@ -386,12 +383,13 @@ server.registerTool(
     if (links) ann.links = links;
 
     const scene = { ...target.scene, annotations: [...target.scene.annotations, ann] };
-    const result = validateDoc({ ...doc, body: setHexelScene(doc.body, target.blockId, scene) });
-    if (!result.ok) return fail(`Invalid doc — ${result.error}`);
-    const next = [...docs];
-    next[index] = result.doc;
+    // Routes through updateDoc, not a direct save — same funnel as every
+    // other body write, even though this rewrite only ever replaces one
+    // block's props in place (same block ids in and out, so it never trips
+    // the widget-drop guard).
     await notifyStart(id);
-    await saveDocs(next);
+    const result = await updateDoc(id, { body: setHexelScene(doc.body, target.blockId, scene) });
+    if (!result.ok) return fail(`Invalid doc — ${result.error}`);
     await notifyCommit('updated', id, result.doc);
     return json({ action: 'annotated', id, blockId: target.blockId, annotation: ann });
   },
