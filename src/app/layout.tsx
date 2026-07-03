@@ -31,6 +31,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     readCollections(),
   ]);
 
+  // Ship the docs tree without page bodies: 40 pages of body text (~80 KB before
+  // JSON escaping, embedded in both the SSR HTML and the RSC payload) dominated
+  // every full page load, and the layout consumers (sidebar, tree) only need
+  // metadata. The current page's own body still server-renders via
+  // docs/[id]/page.tsx, and DocsProvider back-fills the rest with one
+  // background fetch after first paint.
+  const docsLite = docs.map((d) => ({ ...d, body: '' }));
+
   return (
     <html lang="en" className={garamond.variable}>
       {/* suppressHydrationWarning: browser extensions (Grammarly, etc.) inject
@@ -40,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body suppressHydrationWarning className="min-h-screen bg-canvas text-ink antialiased">
         <CollectionsProvider initialCollections={collections}>
           <TemplatesProvider initialTemplates={templates}>
-            <DocsProvider initialDocs={docs}>
+            <DocsProvider initialDocs={docsLite}>
               <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">
                 <SidebarNav />
                 <main className="bg-surface px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>

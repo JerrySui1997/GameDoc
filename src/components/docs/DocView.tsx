@@ -19,8 +19,11 @@ const LiveEditor = dynamic(
   },
 );
 
-/** The one page editor: prose + structured widget blocks, for every page. */
-export function DocView({ docId }: { docId: string }) {
+/** The one page editor: prose + structured widget blocks, for every page.
+ *  `initialBody` is the server-rendered body snapshot from docs/[id]/page.tsx —
+ *  the provider's docs are body-less until its background hydration lands, so
+ *  the static paint can't rely on `getById(docId).body`. */
+export function DocView({ docId, initialBody }: { docId: string; initialBody: string | null }) {
   const { getById, docs, createDoc, deleteDoc, editing } = useDocs();
   const router = useRouter();
   const doc = getById(docId);
@@ -154,7 +157,7 @@ export function DocView({ docId }: { docId: string }) {
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
-            <StaticDocBody title={doc.title} body={doc.body} />
+            <StaticDocBody title={doc.title} body={initialBody ?? doc.body} />
           </div>
         )}
       </div>

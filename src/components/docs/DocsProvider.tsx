@@ -10,9 +10,8 @@ type DocsContextValue = {
   tree: DocTreeNode[];
   getById: (id: string) => DocNode | undefined;
   createDoc: (input: Pick<DocNode, 'id' | 'title' | 'parentId'> & Partial<DocNode>) => Promise<DocNode>;
-  updateDoc: (id: string, patch: Partial<Omit<DocNode, 'id'>>) => Promise<DocNode>;
-  /** Structural, body-preserving update via PATCH. Unlike updateDoc this never
-   *  sends `body`, so it can edit sidebar metadata (e.g. the hierarchy `hue`)
+  /** Structural, body-preserving update via PATCH. This never sends `body`, so
+   *  it can edit sidebar metadata (e.g. the hierarchy `hue` or drag-reorder)
    *  even on a page being live-edited via Yjs without reverting its text. */
   patchDoc: (id: string, patch: Partial<Omit<DocNode, 'id' | 'body'>>) => Promise<DocNode>;
   /** Update the in-memory snapshot only (no fetch). Reflects a live,
@@ -50,8 +49,28 @@ export function DocsProvider({
 
   const getById = useCallback((id: string) => docs.find((d) => d.id === id), [docs]);
 
+  // Hydrate page bodies in the background. The server layout deliberately ships
+  // `initialDocs` with empty bodies — 40 pages of body text on every full load
+  // was the single largest chunk of the HTML/RSC payload, and only cross-page
+  // consumers (related panel, @mention excerpts, character/timeline widgets)
+  // need other pages' bodies. One fetch fills them in a beat after first paint.
+  // Fill-only merge: a doc that already has a body (created or agent-committed
+  // since mount) keeps it, and docs deleted since mount are not resurrected.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/docs')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((fresh: DocNode[] | null) => {
+        if (!fresh || cancelled) return;
+        const byId = new Map(fresh.map((d) => [d.id, d]));
+        setDocs((prev) => prev.map((d) => (d.body === '' ? { ...d, body: byId.get(d.id)?.body ?? '' } : d)));
+      })
+      .catch(() => { /* transient; the tree.changed refetch or a reload recovers */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Apply a doc change pushed by an out-of-band writer (the MCP) into local
-  // state. Mirrors the setDocs shapes used by create/update/deleteDoc below so
+  // state. Mirrors the setDocs shapes used by create/patch/deleteDoc below so
   // the tree, sidebar, and open page all stay consistent.
   const applyCommit = useCallback((action: 'created' | 'updated' | 'deleted', docId: string, doc?: DocNode) => {
     if (action === 'deleted') {
@@ -136,23 +155,6 @@ export function DocsProvider({
     return created;
   }, [docs]);
 
-  const updateDoc = useCallback<DocsContextValue['updateDoc']>(async (id, patch) => {
-    const current = docs.find((d) => d.id === id);
-    if (!current) throw new Error(`Doc "${id}" not found`);
-    const { id: _ignore, ...rest } = { ...current, ...patch };
-
-    const res = await fetch(`/api/docs/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rest),
-    });
-    if (!res.ok) throw new Error(await parseError(res));
-
-    const updated: DocNode = await res.json();
-    setDocs((prev) => prev.map((d) => (d.id === id ? updated : d)));
-    return updated;
-  }, [docs]);
-
   const patchDoc = useCallback<DocsContextValue['patchDoc']>(async (id, patch) => {
     const res = await fetch(`/api/docs/${id}`, {
       method: 'PATCH',
@@ -183,8 +185,8 @@ export function DocsProvider({
   }, [docs]);
 
   const value = useMemo<DocsContextValue>(
-    () => ({ docs, tree: buildDocTree(docs), getById, createDoc, updateDoc, patchDoc, patchLocalDoc, deleteDoc, editing, agentRevisions }),
-    [docs, getById, createDoc, updateDoc, patchDoc, patchLocalDoc, deleteDoc, editing, agentRevisions],
+    () => ({ docs, tree: buildDocTree(docs), getById, createDoc, patchDoc, patchLocalDoc, deleteDoc, editing, agentRevisions }),
+    [docs, getById, createDoc, patchDoc, patchLocalDoc, deleteDoc, editing, agentRevisions],
   );
 
   return <DocsContext.Provider value={value}>{children}</DocsContext.Provider>;
