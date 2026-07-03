@@ -1,0 +1,22 @@
+# Build artifacts & deps (reinstalled/rebuilt inside the image)
+node_modules
+.next
+dist
+
+# VCS & CI metadata
+.git
+.github
+
+# Local env & secrets — keep .env.local out so NEXT_PUBLIC_* isn't baked in
+.env
+.env.*
+
+# Tooling / editor / agent state not needed at runtime
+.claude
+mcp
+*.log
+npm-debug.log*
+
+# Docker files themselves
+Dockerfile
+.dockerignore
