@@ -8,6 +8,7 @@ import { asBadges, asStringList, toneStyle, TONES, type Badge } from '@/lib/temp
 import { CollectionView } from '@/components/widgets';
 import { useCollections } from '@/components/collections/CollectionsProvider';
 import { WidgetShell } from './looks';
+import { MentionField } from './MentionField';
 import type { WidgetProps } from './types';
 
 // The small structured widgets, ported from the old BlockNote block specs to
@@ -20,19 +21,12 @@ export function Labeled({ props, onChange }: WidgetProps) {
   const value = String(props.value ?? '');
   const highlight = !!props.highlight;
   const multiline = !!props.multiline;
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  const commit = () => { if (v !== value) onChange({ value: v }); };
 
   return (
     <WidgetShell type="labeled">
       <div className={clsx('flex w-full flex-col gap-1 sm:flex-row sm:gap-3', highlight && 'rounded-md bg-brass-soft p-2')}>
         <BlockLabel value={label} onCommit={(l) => onChange({ label: l })} />
-        {multiline ? (
-          <textarea value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} rows={3} className={valueClass} />
-        ) : (
-          <input value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} className={valueClass} />
-        )}
+        <MentionField value={value} multiline={multiline} onCommit={(v) => onChange({ value: v })} className={valueClass} />
       </div>
     </WidgetShell>
   );
