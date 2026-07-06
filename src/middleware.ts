@@ -17,11 +17,26 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+// Lets the "gamedoc-live" MCP call the REST API without a browser session —
+// it has no login flow, only the shared secret from GAMEDOC_AGENT_TOKEN (see
+// agentToken.ts, which gates individual mutation routes the same way). Scoped
+// to /api/ so a stolen or logged token still can't reach page routes, and a
+// no-op whenever GAMEDOC_AGENT_TOKEN isn't set.
+function hasValidAgentBearer(req: NextRequest): boolean {
+  const expected = process.env.GAMEDOC_AGENT_TOKEN;
+  if (!expected) return false;
+  const [scheme, token] = (req.headers.get('authorization') ?? '').split(' ');
+  return scheme === 'Bearer' && safeEqual(token, expected);
+}
+
 export async function middleware(req: NextRequest) {
   // Gate is off entirely unless a shared password is configured.
   if (!authEnabled()) return NextResponse.next();
 
   const { pathname, search } = req.nextUrl;
+
+  if (pathname.startsWith('/api/') && hasValidAgentBearer(req)) return NextResponse.next();
+
   const authed = safeEqual(req.cookies.get(AUTH_COOKIE)?.value, await sessionToken());
 
   if (authed) {
