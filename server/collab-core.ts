@@ -20,6 +20,7 @@ import * as Y from 'yjs';
 import { LeveldbPersistence } from 'y-leveldb';
 import { readDocs, writeDocs } from '@/lib/docs/store';
 import { isYDocEmpty, readTitle, seedYDoc, serializeYDoc } from '@/lib/docs/ydoc';
+import { AUTH_COOKIE, authEnabled, parseCookies, safeEqual, sessionToken } from '@/lib/auth/session';
 
 // Store the LevelDB outside the project root so Turbopack's directory scanner
 // never hits the LevelDB LOCK file (which it can't read, causing a fatal panic).
@@ -135,6 +136,30 @@ export function attachCollab(server: Server, opts: { path?: string } = {}): void
       // Strip the prefix so setupWSConnection derives the room from the rest.
       req.url = url.slice(prefix.length) || '/';
     }
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+
+    const accept = () =>
+      wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+
+    // Same site-password gate as the HTTP surfaces. Same-origin browsers send
+    // the gd_session cookie on the WS handshake, so live editing needs the
+    // password too. Only enforced when the gate is on (SITE_PASSWORD set), so
+    // the standalone dev relay stays open.
+    if (!authEnabled()) {
+      accept();
+      return;
+    }
+    void (async () => {
+      try {
+        const cookies = parseCookies(req.headers.cookie);
+        if (safeEqual(cookies[AUTH_COOKIE], await sessionToken())) {
+          accept();
+        } else {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+          socket.destroy();
+        }
+      } catch {
+        socket.destroy();
+      }
+    })();
   });
 }

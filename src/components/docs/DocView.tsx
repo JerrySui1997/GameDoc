@@ -20,8 +20,11 @@ const LiveEditor = dynamic(
   },
 );
 
-/** The one page editor: prose + structured widget blocks, for every page. */
-export function DocView({ docId }: { docId: string }) {
+/** The one page editor: prose + structured widget blocks, for every page.
+ *  `initialBody` is the server-rendered body snapshot from docs/[id]/page.tsx —
+ *  the provider's docs are body-less until its background hydration lands, so
+ *  the static paint can't rely on `getById(docId).body`. */
+export function DocView({ docId, initialBody }: { docId: string; initialBody: string | null }) {
   const { getById, docs, createDoc, deleteDoc, editing } = useDocs();
   const router = useRouter();
   const doc = getById(docId);
@@ -45,11 +48,12 @@ export function DocView({ docId }: { docId: string }) {
     return () => clearTimeout(t);
   }, [live]);
   // Whether the body already has an inline childPages widget, so the fallback
-  // list below isn't a duplicate of it. Seeded from the static `body` (matching
-  // what StaticDocBody paints, so there's no flash) and kept live thereafter by
-  // the editor's own reactive block state, which sees same-session edits that
-  // `doc.body` here does not (it only refreshes on reload/remote commits).
-  const [inlineChildPages, setInlineChildPages] = useState(() => (doc ? bodyHasChildPages(doc.body) : false));
+  // list below isn't a duplicate of it. Seeded from the same static snapshot
+  // StaticDocBody paints from (`initialBody`, since the provider's `doc.body`
+  // is body-less until background hydration lands) so there's no flash, then
+  // kept live thereafter by the editor's own reactive block state, which sees
+  // same-session edits that snapshot does not (it only reflects first paint).
+  const [inlineChildPages, setInlineChildPages] = useState(() => bodyHasChildPages(initialBody ?? doc?.body ?? ''));
 
   if (!doc) {
     return (
@@ -161,7 +165,7 @@ export function DocView({ docId }: { docId: string }) {
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
-            <StaticDocBody title={doc.title} body={doc.body} />
+            <StaticDocBody title={doc.title} body={initialBody ?? doc.body} />
           </div>
         )}
       </div>

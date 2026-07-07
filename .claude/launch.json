@@ -19,6 +19,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:collab"],
       "port": 1234
+    },
+    {
+      "name": "prod",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dist/server.js"],
+      "port": 3000
     }
   ]
 }
