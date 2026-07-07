@@ -1,3 +1,4 @@
+import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import Database from 'better-sqlite3';
@@ -13,6 +14,13 @@ import * as schema from './schema';
 // production.
 export const AUTH_DB_FILE =
   process.env.AUTH_DB_PATH || path.join(os.homedir(), '.gamedoc', 'auth.db');
+
+// Unlike y-leveldb (which creates its directory tree on open), better-sqlite3
+// requires the parent directory to already exist — it throws otherwise. A
+// fresh checkout with no prior ~/.gamedoc/ (CI, a clean dev machine, a fresh
+// Railway volume) hits this the first time anything imports this module,
+// including `next build`'s page-data collection for auth-gated routes.
+fs.mkdirSync(path.dirname(AUTH_DB_FILE), { recursive: true });
 
 const sqlite = new Database(AUTH_DB_FILE);
 sqlite.pragma('journal_mode = WAL');
