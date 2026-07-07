@@ -44,6 +44,7 @@ export const WIDGET_TYPES = [
   'swatch',
   'hexelMap',
   'imageBoard',
+  'childPages',
 ] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
@@ -94,6 +95,18 @@ export function isWidgetType(type: string): type is WidgetType {
 }
 export function isWidgetBlock(block: DocBlock): block is WidgetBlock {
   return WIDGET_SET.has(block.type);
+}
+
+/** Whether a block is an inline child-pages widget (see `bodyHasChildPages`). */
+export function isChildPagesWidget(block: DocBlock): block is WidgetBlock {
+  return isWidgetBlock(block) && block.type === 'childPages';
+}
+
+/** Whether a stored body already carries an inline child-pages widget. DocView
+ *  uses this to suppress its automatic bottom child-page list so the same
+ *  children aren't listed twice on a page that has moved them into the body. */
+export function bodyHasChildPages(body: string): boolean {
+  return parseBody(body).some(isChildPagesWidget);
 }
 
 export type ListType = 'bullet' | 'numbered';
@@ -361,6 +374,18 @@ function widgetPlainText(block: WidgetBlock): string {
     // (spaces, features, relations) so search and the agent's `format:'text'` see
     // a place, not an opaque blob.
     parts.push(summarizeScene(block.props.dataJson));
+  } else if (block.type === 'childPages') {
+    parts.push(str(block.props.label));
+    if (typeof block.props.titlesJson === 'string') {
+      try {
+        const overrides: unknown = JSON.parse(block.props.titlesJson);
+        if (overrides && typeof overrides === 'object') {
+          for (const v of Object.values(overrides as Record<string, unknown>)) parts.push(str(v));
+        }
+      } catch {
+        // ignore malformed overrides
+      }
+    }
   }
   return parts.filter(Boolean).join(' ');
 }
