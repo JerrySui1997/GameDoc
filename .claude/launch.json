@@ -19,6 +19,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["dist/server.js"],
       "port": 3000
+    },
+    {
+      "name": "collab",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "server/collab.ts"],
+      "port": 1234
     }
   ]
 }

@@ -24,9 +24,12 @@ async function parseError(res: Response): Promise<string> {
 
 export function CollectionsProvider({
   initialCollections,
+  apiBase = '/api/collections',
   children,
 }: {
   initialCollections: Collection[];
+  /** Personal spaces (src/app/(personal)/app) point this at /api/app/collections. */
+  apiBase?: string;
   children: React.ReactNode;
 }) {
   const [collections, setCollections] = useState<Collection[]>(initialCollections);
@@ -34,7 +37,7 @@ export function CollectionsProvider({
   const getById = useCallback((id: string) => collections.find((c) => c.id === id), [collections]);
 
   const createCollection = useCallback<CollectionsContextValue['createCollection']>(async (collection) => {
-    const res = await fetch('/api/collections', {
+    const res = await fetch(apiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(collection),
@@ -43,10 +46,10 @@ export function CollectionsProvider({
     const created: Collection = await res.json();
     setCollections((prev) => [...prev, created]);
     return created;
-  }, []);
+  }, [apiBase]);
 
   const updateCollection = useCallback<CollectionsContextValue['updateCollection']>(async (id, collection) => {
-    const res = await fetch(`/api/collections/${id}`, {
+    const res = await fetch(`${apiBase}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(collection),
@@ -55,13 +58,13 @@ export function CollectionsProvider({
     const updated: Collection = await res.json();
     setCollections((prev) => prev.map((c) => (c.id === id ? updated : c)));
     return updated;
-  }, []);
+  }, [apiBase]);
 
   const deleteCollection = useCallback<CollectionsContextValue['deleteCollection']>(async (id) => {
-    const res = await fetch(`/api/collections/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await parseError(res));
     setCollections((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+  }, [apiBase]);
 
   const value = useMemo<CollectionsContextValue>(
     () => ({ collections, getById, createCollection, updateCollection, deleteCollection }),
