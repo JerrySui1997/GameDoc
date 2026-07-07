@@ -20,6 +20,9 @@ dist/
 # local content snapshots (left on disk; git history is the version trail from here on)
 src/data/docs/content.backup-*.json
 
+# board reference images — real files on the persistent volume, not git-tracked
+src/data/boards/images/
+
 # claude local machine config
 .claude/settings.local.json
 

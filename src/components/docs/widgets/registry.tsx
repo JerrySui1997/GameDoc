@@ -4,9 +4,11 @@ import type { WidgetBlock, WidgetType } from '@/lib/docs/blocks';
 import type { WidgetEntry } from './types';
 import { Labeled, StatusBadge, Badges, Tags, Refs, Collection } from './SmallWidgets';
 import { StudioPanel } from './StudioPanel';
+import { EnvironmentPanel } from './EnvironmentPanel';
 import { CharacterCard } from './CharacterCard';
 import { NarrativeTimeline } from './NarrativeTimeline';
 import { HexelMap } from './HexelMap';
+import { ImageBoard } from './ImageBoard';
 import { Hero, Cards, Swatches } from './RichWidgets';
 
 // The single registry of insertable widgets — replaces the old WIDGET_DEFS +
@@ -63,6 +65,13 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { dataJson: '' },
     Component: StudioPanel,
   },
+  environmentStudio: {
+    type: 'environmentStudio',
+    title: 'Environment Studio',
+    aliases: ['environment', 'location', 'sheet', 'panel', 'designer', 'place', 'area', 'level'],
+    defaults: { dataJson: '' },
+    Component: EnvironmentPanel,
+  },
   characterCard: {
     type: 'characterCard',
     title: 'Character Card',
@@ -105,6 +114,13 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { label: 'Palette', swatchesJson: '[]', overridesJson: '{}' },
     Component: Swatches,
   },
+  imageBoard: {
+    type: 'imageBoard',
+    title: 'Image Board',
+    aliases: ['board', 'reference', 'gallery', 'images', 'moodboard', 'refs'],
+    defaults: { boardId: '' },
+    Component: ImageBoard,
+  },
 };
 
 /** Shelf / slash-menu order (matches the previous WIDGET_DEFS ordering). */
@@ -119,9 +135,11 @@ export const WIDGET_LIST: WidgetEntry[] = [
   WIDGETS.refs,
   WIDGETS.collection,
   WIDGETS.studioPanel,
+  WIDGETS.environmentStudio,
   WIDGETS.characterCard,
   WIDGETS.narrativeTimeline,
   WIDGETS.hexelMap,
+  WIDGETS.imageBoard,
 ];
 
 /** A fresh widget block of the given type, seeded with its default props. */

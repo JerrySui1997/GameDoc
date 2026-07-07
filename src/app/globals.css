@@ -967,6 +967,104 @@
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   Image Board  (.ib-*)
+   A bound-pointer embed of a shared reference gallery (see BoardsProvider) —
+   pick a board from the chrome bar, its images render as a tiled gallery.
+   Editing the board from /boards (or any other embed) updates every embed,
+   since all embeds read the same BoardsProvider state. Shares Character
+   Card's chrome-bar-over-content shape, sized for a photo grid instead.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.ib-root {
+  font-family: var(--serif);
+  margin: 0.5rem 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 8px 24px rgba(26, 37, 48, 0.07);
+}
+.ib-root *, .ib-root *::before, .ib-root *::after { box-sizing: border-box; }
+
+/* ── Chrome bar ─────────────────────────────────────────────────────────── */
+.ib-chrome {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--ink);
+  color: #fff;
+}
+.ib-chrome-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.ib-source {
+  font-family: var(--serif);
+  font-size: 13px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px;
+  max-width: 16rem;
+}
+.ib-open {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #9fd0e6;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.ib-open:hover { color: #fff; }
+
+/* ── Placeholder (unbound / empty board) ─────────────────────────────────── */
+.ib-placeholder {
+  padding: 18px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ib-placeholder b { color: var(--ink); }
+
+/* ── Gallery grid ───────────────────────────────────────────────────────── */
+.ib-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+.ib-tile {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--ground);
+}
+.ib-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ib-caption {
+  position: absolute;
+  inset: auto 0 0 0;
+  margin: 0;
+  padding: 5px 8px 4px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #fff;
+  background: linear-gradient(to top, rgba(26, 37, 48, 0.78), rgba(26, 37, 48, 0));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    Narrative Timeline  (.tl-*)
    A "story spine": acts and moments flow along a smooth, color-shifting ribbon
    (Prezi / Detroit: Become Human style). Shares the studio's warm journal
