@@ -16,6 +16,7 @@ import * as Y from 'yjs';
 import {
   emptyProse,
   flattenToFlatBlocks,
+  isChildPagesWidget,
   isListType,
   isWidgetBlock,
   listRangeToMarkdown,
@@ -196,6 +197,7 @@ export function PageEditor({
   docId,
   awareness,
   identity,
+  onChildPagesWidgetChange,
 }: {
   /** The page's live Yjs document (already connected via useYDoc). */
   doc: Y.Doc;
@@ -205,6 +207,10 @@ export function PageEditor({
   awareness?: Awareness | null;
   /** This client's display identity, published to teammates' presence. */
   identity?: Identity | null;
+  /** Fires whenever the live body's inline childPages-widget membership changes,
+   *  so the page shell can suppress its own fallback bottom child-page list
+   *  without waiting for a reload. */
+  onChildPagesWidgetChange?: (has: boolean) => void;
 }) {
   // Blocks are *derived* from Y — the single source of truth. Any local or remote
   // change to the order array or to a block's type/text/props re-runs this sync.
@@ -243,6 +249,15 @@ export function PageEditor({
   // a reliable "seed has arrived" signal — and gating edits on it means the
   // client can never create content into an un-seeded doc and block the seed.
   const ready = blocks.length > 0;
+
+  // Tell the page shell live whether the body already carries an inline
+  // childPages widget, so it can hide its own fallback bottom list the moment
+  // one is inserted (or show it again the moment the last one is removed) —
+  // without that shell needing to re-derive it from a stale `doc.body` snapshot.
+  const hasChildPagesWidget = useMemo(() => blocks.some(isChildPagesWidget), [blocks]);
+  useEffect(() => {
+    onChildPagesWidgetChange?.(hasChildPagesWidget);
+  }, [hasChildPagesWidget, onChildPagesWidgetChange]);
 
   const [slash, setSlash] = useState<{ id: string; index: number } | null>(null);
 
@@ -1076,7 +1091,7 @@ export function PageEditor({
                   </>
                 ) : null}
                 {isWidgetBlock(block) ? (
-                  <WidgetHost block={block} onChange={(patch) => setWidgetProps(block.id, patch)} />
+                  <WidgetHost block={block} onChange={(patch) => setWidgetProps(block.id, patch)} docId={docId} />
                 ) : (
                   <ColorFrame color={tag?.color}>
                     <ProseView

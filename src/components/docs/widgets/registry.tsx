@@ -7,7 +7,7 @@ import { StudioPanel } from './StudioPanel';
 import { CharacterCard } from './CharacterCard';
 import { NarrativeTimeline } from './NarrativeTimeline';
 import { HexelMap } from './HexelMap';
-import { Hero, Cards, Swatches } from './RichWidgets';
+import { Hero, Cards, Swatches, ChildPages } from './RichWidgets';
 
 // The single registry of insertable widgets — replaces the old WIDGET_DEFS +
 // createReactBlockSpec schema. Each entry knows how to label, insert (defaults),
@@ -105,6 +105,13 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { label: 'Palette', swatchesJson: '[]', overridesJson: '{}' },
     Component: Swatches,
   },
+  childPages: {
+    type: 'childPages',
+    title: 'Child pages',
+    aliases: ['children', 'subpages', 'chapters', 'toc', 'index', 'hub'],
+    defaults: { label: 'Child pages', columns: 3, titlesJson: '{}' },
+    Component: ChildPages,
+  },
 };
 
 /** Shelf / slash-menu order (matches the previous WIDGET_DEFS ordering). */
@@ -122,6 +129,7 @@ export const WIDGET_LIST: WidgetEntry[] = [
   WIDGETS.characterCard,
   WIDGETS.narrativeTimeline,
   WIDGETS.hexelMap,
+  WIDGETS.childPages,
 ];
 
 /** A fresh widget block of the given type, seeded with its default props. */
@@ -130,15 +138,25 @@ export function makeWidgetBlock(type: WidgetType, id: string): WidgetBlock {
 }
 
 /** Render a widget block. The host is `contentEditable={false}` so the widget's
- *  own React UI owns all interaction. Missing props fall back to defaults. */
-export function WidgetHost({ block, onChange }: { block: WidgetBlock; onChange: (patch: Record<string, unknown>) => void }) {
+ *  own React UI owns all interaction. Missing props fall back to defaults.
+ *  `docId` is the page the block lives on — most widgets ignore it; childPages
+ *  uses it to find its own children. */
+export function WidgetHost({
+  block,
+  onChange,
+  docId,
+}: {
+  block: WidgetBlock;
+  onChange: (patch: Record<string, unknown>) => void;
+  docId?: string;
+}) {
   const entry = WIDGETS[block.type];
   if (!entry) return null;
   const Component = entry.Component;
   const props = { ...entry.defaults, ...block.props };
   return (
     <div contentEditable={false}>
-      <Component props={props} onChange={onChange} />
+      <Component props={props} onChange={onChange} docId={docId} />
     </div>
   );
 }

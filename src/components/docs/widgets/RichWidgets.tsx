@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 import { BlockLabel, parseJson } from '../blocks/shared';
 import { TONES } from '@/lib/templates/types';
 import { tonalName } from '@/lib/color/tonalName';
+import { blocksToPlainText, parseBody } from '@/lib/docs/blocks';
+import { useDocs } from '../DocsProvider';
 import type { WidgetProps } from './types';
 
 // The deck-level widgets: a lead banner (Hero), a responsive titled-card grid
@@ -395,6 +397,119 @@ export function Swatches({ props, onChange }: WidgetProps) {
           + color
         </button>
       </div>
+    </Frame>
+  );
+}
+
+// ── Child pages ──────────────────────────────────────────────────────────────
+
+// A live card grid of this page's own children — for pages (a Story index, a
+// Systems hub) whose real content *is* its children, so the cards can sit right
+// under the heading instead of the fixed list the page used to grow at the
+// bottom, leaving a blank gap above it. Membership is automatic and always
+// current (every child, live, via useDocs) — there's nothing to pick or
+// maintain. The one editable bit per card is a display-title override (same
+// auto/custom idiom as Swatches' color names): typing over a title pins it for
+// that card, clearing it reverts to the real page title. The real title itself
+// — used everywhere else (sidebar, URL, mentions) — is never touched.
+
+/** First ~140 chars of a child's own body, for a short card excerpt. */
+function childExcerpt(body: string): string {
+  const text = blocksToPlainText(parseBody(body)).trim().replace(/\s+/g, ' ');
+  return text.length > 140 ? `${text.slice(0, 140).trimEnd()}…` : text;
+}
+
+function ChildPageCard({
+  href,
+  realTitle,
+  title,
+  overridden,
+  excerpt,
+  onRename,
+}: {
+  href: string;
+  realTitle: string;
+  title: string;
+  overridden: boolean;
+  excerpt: string;
+  onRename: (next: string) => void;
+}) {
+  const [v, setV] = useState(title);
+  useEffect(() => setV(title), [title]);
+
+  return (
+    <div className="group/card relative overflow-hidden rounded-xl border border-line bg-surface shadow-[0_4px_14px_rgba(26,37,48,0.06)]">
+      <a href={href} aria-label={`Open ${realTitle}`} className="absolute inset-0" />
+      <div className="relative space-y-1.5 p-4 pointer-events-none">
+        <input
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          onBlur={() => { if (v !== title) onRename(v); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          placeholder={realTitle}
+          title={overridden ? 'Custom label — clear to use the page title' : 'Using the page title — type to rename this card'}
+          className="relative z-10 w-full pointer-events-auto border-none bg-transparent p-0 text-base font-semibold text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
+        />
+        {excerpt && <p className="text-sm leading-relaxed text-muted">{excerpt}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** A live grid of the current page's child pages, as navigable cards. */
+export function ChildPages({ props, onChange, docId }: WidgetProps) {
+  const { docs } = useDocs();
+  const label = String(props.label ?? 'Child pages');
+  const columns = [1, 2, 3].includes(Number(props.columns)) ? Number(props.columns) : 3;
+  const overrides = parseJson<Record<string, string>>(props.titlesJson, {});
+
+  const children = useMemo(
+    () => docs.filter((d) => d.parentId === docId).sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)),
+    [docs, docId],
+  );
+
+  const rename = (childId: string, realTitle: string, value: string) => {
+    const trimmed = value.trim();
+    const next = { ...overrides };
+    if (!trimmed || trimmed === realTitle) delete next[childId];
+    else next[childId] = trimmed;
+    onChange({ titlesJson: JSON.stringify(next) });
+  };
+
+  const colsSelect = (
+    <label className="inline-flex items-center gap-1 text-[11px] text-muted">
+      cols
+      <select
+        value={columns}
+        onChange={(e) => onChange({ columns: Number(e.target.value) })}
+        className="rounded border border-line px-1 py-0.5"
+      >
+        {[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
+    </label>
+  );
+
+  return (
+    <Frame label={label} onLabel={(l) => onChange({ label: l })} right={colsSelect}>
+      {children.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-sm text-muted">
+          No child pages yet — they'll appear here automatically once you add some.
+        </p>
+      ) : (
+        <div className={clsx('grid gap-4', COL_CLASS[columns])}>
+          {children.map((child) => (
+            <ChildPageCard
+              key={child.id}
+              href={`/docs/${child.id}`}
+              realTitle={child.title}
+              title={overrides[child.id] ?? child.title}
+              overridden={child.id in overrides}
+              excerpt={childExcerpt(child.body)}
+              onRename={(v) => rename(child.id, child.title, v)}
+            />
+          ))}
+        </div>
+      )}
     </Frame>
   );
 }

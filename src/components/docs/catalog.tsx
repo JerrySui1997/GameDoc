@@ -326,4 +326,26 @@ export const WIDGET_CATALOG: Record<WidgetType, CatalogEntry> = {
       </div>
     ),
   },
+  childPages: {
+    icon: (
+      <Icon>
+        <rect x="9" y="3" width="6" height="5" rx="1" />
+        <path d="M12 8v3M5 11h14M5 11v4M19 11v4" />
+        <rect x="2" y="15" width="6" height="6" rx="1" />
+        <rect x="16" y="15" width="6" height="6" rx="1" />
+      </Icon>
+    ),
+    blurb: "Live card grid of this page's own child pages — rename a card's label without renaming the page.",
+    preview: (
+      <div className="grid grid-cols-2 gap-1.5">
+        {['Chapter One', 'Chapter Two'].map((t) => (
+          <div key={t} className="space-y-1 rounded border border-line bg-white p-1.5">
+            <div className="h-1.5 w-5/6 rounded bg-ink" />
+            <div className="h-1 w-full rounded bg-line-soft" />
+            <div className="h-1 w-2/3 rounded bg-line-soft" />
+          </div>
+        ))}
+      </div>
+    ),
+  },
 };
