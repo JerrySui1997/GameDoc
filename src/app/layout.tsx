@@ -20,6 +20,8 @@ import { readTemplates } from '@/lib/templates/store';
 import { CollectionsProvider } from '@/components/collections/CollectionsProvider';
 import { readCollections } from '@/lib/collections/store';
 import { AUTH_COOKIE, authEnabled, safeEqual, sessionToken } from '@/lib/auth/session';
+import { BoardsProvider } from '@/components/boards/BoardsProvider';
+import { readBoards } from '@/lib/boards/store';
 
 export const metadata: Metadata = {
   title: { default: 'Game Design Tool', template: '%s · Game Design Tool' },
@@ -52,10 +54,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const [docs, templates, collections] = await Promise.all([
+  const [docs, templates, collections, boards] = await Promise.all([
     readDocs(),
     readTemplates(),
     readCollections(),
+    readBoards(),
   ]);
 
   // Ship the docs tree without page bodies: 40 pages of body text (~80 KB before
@@ -70,14 +73,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={garamond.variable}>
       <body suppressHydrationWarning className={BODY_CLASS}>
         <CollectionsProvider initialCollections={collections}>
-          <TemplatesProvider initialTemplates={templates}>
-            <DocsProvider initialDocs={docsLite}>
-              <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">
-                <SidebarNav showLogout={gated} />
-                <main className="bg-surface px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
-              </div>
-            </DocsProvider>
-          </TemplatesProvider>
+          <BoardsProvider initialBoards={boards}>
+            <TemplatesProvider initialTemplates={templates}>
+              <DocsProvider initialDocs={docsLite}>
+                <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">
+                  <SidebarNav showLogout={gated} />
+                  <main className="bg-surface px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
+                </div>
+              </DocsProvider>
+            </TemplatesProvider>
+          </BoardsProvider>
         </CollectionsProvider>
       </body>
     </html>

@@ -36,12 +36,14 @@ export const WIDGET_TYPES = [
   'refs',
   'collection',
   'studioPanel',
+  'environmentStudio',
   'characterCard',
   'narrativeTimeline',
   'hero',
   'cards',
   'swatch',
   'hexelMap',
+  'imageBoard',
 ] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
