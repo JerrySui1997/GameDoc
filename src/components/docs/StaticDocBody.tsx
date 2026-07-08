@@ -24,11 +24,13 @@ const PROSE_CLASS: Record<ProseType, string> = {
   quote: 'text-lg leading-relaxed font-medium italic text-muted border-l-2 border-line pl-4',
   code: 'font-mono text-sm leading-relaxed text-ink bg-canvas rounded-md px-3 py-2 whitespace-pre-wrap',
   divider: '',
+  beat: 'text-xs font-semibold uppercase tracking-wide text-muted',
 };
 
 export function StaticDocBody({ title, body }: { title: string; body: string }) {
   const blocks = parseBody(body);
   let numbered = 0; // running index across a consecutive run of numbered items
+  let beatN = 0; // running index across every beat marker in the whole page
 
   return (
     <div className="w-full space-y-3" aria-hidden>
@@ -52,6 +54,22 @@ export function StaticDocBody({ title, body }: { title: string; body: string }) 
         if (block.type === 'divider') {
           numbered = 0;
           return <hr key={block.id} className="border-line" />;
+        }
+        if (block.type === 'beat') {
+          numbered = 0;
+          beatN += 1;
+          return (
+            <div key={block.id} className="my-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-line" />
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-brass px-1 font-mono text-[11px] font-semibold tabular-nums text-brass">
+                  {beatN}
+                </span>
+                {block.text && <span className={cls}>{block.text}</span>}
+              </span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          );
         }
         if (block.type === 'bullet') {
           numbered = 0;

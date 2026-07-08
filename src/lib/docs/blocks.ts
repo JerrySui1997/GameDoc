@@ -25,6 +25,7 @@ export const PROSE_TYPES = [
   'quote',
   'code',
   'divider',
+  'beat',
 ] as const;
 export type ProseType = (typeof PROSE_TYPES)[number];
 
