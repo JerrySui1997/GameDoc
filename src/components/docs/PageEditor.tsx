@@ -114,6 +114,7 @@ const PROSE_MENU: { type: ProseType; title: string; terms: string[] }[] = [
   { type: 'quote', title: 'Quote', terms: ['quote', 'blockquote', 'callout'] },
   { type: 'code', title: 'Code', terms: ['code', 'pre', 'mono'] },
   { type: 'divider', title: 'Divider', terms: ['divider', 'hr', 'rule', 'separator', 'line'] },
+  { type: 'beat', title: 'Beat', terms: ['beat', 'moment', 'sequence', 'number', 'marker', 'segment', 'event'] },
 ];
 
 type SlashItem = { key: string; title: string; subtitle: string; blurb: string; icon: ReactNode; preview: ReactNode; run: () => void };
@@ -128,6 +129,7 @@ const PROSE_CLASS: Record<ProseType, string> = {
   quote: 'text-lg leading-relaxed font-medium italic text-muted',
   code: 'font-mono text-sm leading-relaxed text-ink bg-canvas rounded-md px-3 py-2',
   divider: '',
+  beat: 'text-xs font-semibold uppercase tracking-wide text-muted',
 };
 
 // Literal Tailwind width classes per layout fraction (Tailwind v4 only emits
@@ -422,16 +424,24 @@ export function PageEditor({
     [blocks, docId],
   );
 
-  // Numbered-list ordinals (reset on any non-numbered block).
+  // Auto-numbered markers. `numbered` list items count within a contiguous run
+  // (reset by any other block type). `beat` markers count across the whole page
+  // instead — never reset — since they number a story's full sequence of moments,
+  // not a run; the two types are mutually exclusive so one map serves both.
   const ordinals = useMemo(() => {
     const map = new Map<string, number>();
     let run = 0;
+    let beatN = 0;
     for (const b of displayBlocks) {
       if (!isWidgetBlock(b) && b.type === 'numbered') {
         run += 1;
         map.set(b.id, run);
       } else {
         run = 0;
+      }
+      if (!isWidgetBlock(b) && b.type === 'beat') {
+        beatN += 1;
+        map.set(b.id, beatN);
       }
     }
     return map;
@@ -1079,9 +1089,9 @@ export function PageEditor({
             const li = listInfo.get(block.id);
             const spacing = li ? `${li.first ? 'pt-0.5' : 'pt-0'} ${li.last ? 'pb-0.5' : 'pb-0'}` : 'py-0.5';
             const selected = selectedIds.size >= 2 && selectedIds.has(block.id);
-            // Prose blocks (not dividers) can be tagged with a legend colour; the
-            // resolved entry (if its id still exists in the legend) tints them.
-            const canColor = !isWidgetBlock(block) && block.type !== 'divider';
+            // Prose blocks (not dividers/beats) can be tagged with a legend colour;
+            // the resolved entry (if its id still exists in the legend) tints them.
+            const canColor = !isWidgetBlock(block) && block.type !== 'divider' && block.type !== 'beat';
             const colorId = !isTrailer && !isWidgetBlock(block) ? block.color : undefined;
             const tag = colorId ? legendById.get(colorId) : undefined;
             return (
@@ -1352,7 +1362,7 @@ function ProseView({
         onPaste={(e) => onPaste(e, block)}
         onFocus={(e) => { setFocused(true); onFocus(); onCursor(block.id, e.currentTarget.selectionStart, e.currentTarget.selectionEnd); }}
         onBlur={() => { setFocused(false); setSel(null); }}
-        placeholder={block.type === 'paragraph' ? "Write, or press '/' for blocks…" : undefined}
+        placeholder={block.type === 'paragraph' ? "Write, or press '/' for blocks…" : block.type === 'beat' ? 'Label (optional)' : undefined}
         spellCheck
         // While the chip overlay is up (idle), hide the raw text under it
         // (transparent) so the `@slug` token never double-paints behind a chip, and
@@ -1387,6 +1397,23 @@ function ProseView({
 
   if (block.type === 'quote') {
     return <div className="my-1 rounded-r-lg border-l-4 border-brass bg-canvas py-2 pl-4 pr-3">{field}</div>;
+  }
+  if (block.type === 'beat') {
+    return (
+      <div className="my-4 flex items-center gap-3">
+        <span className="h-px flex-1 bg-line" aria-hidden />
+        <span className="flex shrink-0 items-center gap-2">
+          <span
+            className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-brass px-1 font-mono text-[11px] font-semibold tabular-nums text-brass"
+            aria-hidden
+          >
+            {ordinal ?? 1}
+          </span>
+          <div className="min-w-0 max-w-[16rem]">{field}</div>
+        </span>
+        <span className="h-px flex-1 bg-line" aria-hidden />
+      </div>
+    );
   }
   if (marker) {
     // Fixed-width, right-aligned, tabular marker column so `1.`–`99.` and `•` all
@@ -1681,7 +1708,7 @@ function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, on
 }) {
   const [colorOpen, setColorOpen] = useState(false);
   const layout = block.layout ?? DEFAULT_LAYOUT;
-  const canColor = !isWidgetBlock(block) && block.type !== 'divider';
+  const canColor = !isWidgetBlock(block) && block.type !== 'divider' && block.type !== 'beat';
   const colorId = isWidgetBlock(block) ? undefined : block.color;
   const tag = canColor && colorId ? legend.find((e) => e.id === colorId) : undefined;
   const meta = blockMeta(block);

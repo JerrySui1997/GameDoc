@@ -123,6 +123,18 @@ export const PROSE_CATALOG: Record<ProseType, CatalogEntry> = {
       </div>
     ),
   },
+  beat: {
+    icon: <Icon><line x1="3" y1="12" x2="8.5" y2="12" /><circle cx="12" cy="12" r="2.6" /><line x1="15.5" y1="12" x2="21" y2="12" /></Icon>,
+    blurb: 'Numbered break marking the next beat in a sequence of events.',
+    preview: (
+      <div className="flex items-center gap-2 py-2">
+        <div className="h-px flex-1 bg-line" />
+        <span className="flex h-3.5 min-w-[0.875rem] items-center justify-center rounded-full border border-brass px-1 text-[7px] font-bold tabular-nums text-brass">2</span>
+        <div className="h-1.5 w-8 rounded bg-line" />
+        <div className="h-px flex-1 bg-line" />
+      </div>
+    ),
+  },
 };
 
 // ── Widgets ───────────────────────────────────────────────────────────────────
