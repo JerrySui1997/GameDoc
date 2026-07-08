@@ -31,4 +31,12 @@ export const db = drizzle(sqlite, { schema });
 // running it unconditionally at import time keeps auth.db up to date in every
 // context that touches it — plain `next dev` included, which never goes
 // through server/index.ts's explicit ensureAuthDb() boot step.
-migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
+//
+// Skipped during `next build` itself: page-data collection imports this module
+// from several parallel workers, and they'd all race to CREATE TABLE against
+// the same file (fine when it doesn't exist yet, a "table already exists"
+// build failure when a prior deploy's volume already has it). The production
+// boot path runs migrate() explicitly and serially via ensureAuthDb() instead.
+if (process.env.NEXT_PHASE !== 'phase-production-build') {
+  migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
+}
