@@ -257,6 +257,19 @@ export const WIDGET_CATALOG: Record<WidgetType, CatalogEntry> = {
       </div>
     ),
   },
+  environmentStudio: {
+    icon: <Icon><path d="M3 17l4-6 3 4 4-7 7 9" /><circle cx="18" cy="6" r="1.5" /></Icon>,
+    blurb: 'Interactive environment/location design sheet.',
+    preview: (
+      <div className="flex gap-2 rounded-lg border border-line bg-canvas p-1.5">
+        <div className="flex h-10 w-10 items-center justify-center rounded bg-line-soft text-[10px] text-muted">▲</div>
+        <div className="flex-1 space-y-1 pt-0.5">
+          <div className="h-1.5 w-3/4 rounded bg-line" />
+          <div className="flex gap-1">{chip('bg-teal-300', 'w-4')}{chip('bg-amber-300', 'w-4')}{chip('bg-rose-300', 'w-4')}</div>
+        </div>
+      </div>
+    ),
+  },
   characterCard: {
     icon: <Icon><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="11" r="2" /><line x1="13" y1="9" x2="18" y2="9" /><line x1="13" y1="13" x2="18" y2="13" /></Icon>,
     blurb: 'Mirror a character page’s Studio — pick the page, choose which fields to show.',
@@ -323,6 +336,39 @@ export const WIDGET_CATALOG: Record<WidgetType, CatalogEntry> = {
         <div className="mt-1 flex justify-between text-[6px] font-semibold uppercase tracking-wide text-muted">
           <span>Garden</span><span>Room</span><span>Door</span>
         </div>
+      </div>
+    ),
+  },
+  imageBoard: {
+    icon: <Icon><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path d="M4 16l5-5 4 4 3-3 4 4" /></Icon>,
+    blurb: 'Embed a shared reference image board — pick a board, every page embedding it stays in sync.',
+    preview: (
+      <div className="grid grid-cols-2 gap-1">
+        {['bg-teal-200', 'bg-amber-200', 'bg-rose-200', 'bg-sky-200'].map((cls, i) => (
+          <div key={i} className={`h-4 rounded ${cls}`} />
+        ))}
+      </div>
+    ),
+  },
+  childPages: {
+    icon: (
+      <Icon>
+        <rect x="9" y="3" width="6" height="5" rx="1" />
+        <path d="M12 8v3M5 11h14M5 11v4M19 11v4" />
+        <rect x="2" y="15" width="6" height="6" rx="1" />
+        <rect x="16" y="15" width="6" height="6" rx="1" />
+      </Icon>
+    ),
+    blurb: "Live card grid of this page's own child pages — rename a card's label without renaming the page.",
+    preview: (
+      <div className="grid grid-cols-2 gap-1.5">
+        {['Chapter One', 'Chapter Two'].map((t) => (
+          <div key={t} className="space-y-1 rounded border border-line bg-white p-1.5">
+            <div className="h-1.5 w-5/6 rounded bg-ink" />
+            <div className="h-1 w-full rounded bg-line-soft" />
+            <div className="h-1 w-2/3 rounded bg-line-soft" />
+          </div>
+        ))}
       </div>
     ),
   },

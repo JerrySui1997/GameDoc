@@ -16,6 +16,7 @@ export function LiveEditor({
   docId,
   roomId,
   onLive,
+  onChildPagesWidgetChange,
 }: {
   docId: string;
   /** Yjs room name; defaults to the bare docId. Personal spaces pass
@@ -23,6 +24,8 @@ export function LiveEditor({
    *  (see server/collab-core.ts's parseRoom). */
   roomId?: string;
   onLive?: () => void;
+  /** Forwarded to PageEditor — see its own doc for why DocView needs this live. */
+  onChildPagesWidgetChange?: (has: boolean) => void;
 }) {
   const collab = useYDoc(roomId ?? docId);
   const { getById, patchLocalDoc } = useDocs();
@@ -95,6 +98,7 @@ export function LiveEditor({
           docId={docId}
           awareness={collab.awareness}
           identity={identity}
+          onChildPagesWidgetChange={onChildPagesWidgetChange}
         />
       ) : (
         <div className="min-h-[40vh] animate-pulse rounded-lg bg-line-soft" aria-hidden />

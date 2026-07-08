@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { bodyHasChildPages } from '@/lib/docs/blocks';
 import { useDocs } from './DocsProvider';
 import { InlinePrompt, slugify } from './inline';
 import { RelatedPanel } from './RelatedPanel';
@@ -62,6 +63,12 @@ export function DocView({
     const t = setTimeout(() => setLive(true), 5000);
     return () => clearTimeout(t);
   }, [live]);
+  // Whether the body already has an inline childPages widget, so the fallback
+  // list below isn't a duplicate of it. Seeded from the static `body` (matching
+  // what StaticDocBody paints, so there's no flash) and kept live thereafter by
+  // the editor's own reactive block state, which sees same-session edits that
+  // `doc.body` here does not (it only refreshes on reload/remote commits).
+  const [inlineChildPages, setInlineChildPages] = useState(() => (doc ? bodyHasChildPages(doc.body) : false));
 
   if (!doc) {
     return (
@@ -169,7 +176,7 @@ export function DocView({
           until it's ready, then the static copy is dropped. */}
       <div className="grid">
         <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
-          <LiveEditor docId={doc.id} roomId={roomId} onLive={handleLive} />
+          <LiveEditor docId={doc.id} roomId={roomId} onLive={handleLive} onChildPagesWidgetChange={setInlineChildPages} />
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
@@ -180,7 +187,7 @@ export function DocView({
 
       <RelatedPanel docId={doc.id} />
 
-      {children.length > 0 && (
+      {!inlineChildPages && children.length > 0 && (
         <section className="pt-6">
           <h2 className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-muted">Child pages</h2>
           <ul className="grid gap-2 sm:grid-cols-2">
