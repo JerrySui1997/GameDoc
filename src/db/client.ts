@@ -23,6 +23,12 @@ export const AUTH_DB_FILE =
 fs.mkdirSync(path.dirname(AUTH_DB_FILE), { recursive: true });
 
 const sqlite = new Database(AUTH_DB_FILE);
+// better-sqlite3 defaults to failing instantly (SQLITE_BUSY) instead of
+// waiting when another connection holds the lock. `next build`'s page-data
+// collection opens this same file from several parallel workers at once —
+// without a busy timeout, setting WAL mode below (itself a brief write lock)
+// collides across workers and fails the build with "database is locked".
+sqlite.pragma('busy_timeout = 5000');
 sqlite.pragma('journal_mode = WAL');
 
 export const db = drizzle(sqlite, { schema });
