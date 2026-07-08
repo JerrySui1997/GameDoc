@@ -12,7 +12,16 @@ import { NamePrompt, PresenceAvatars, useRemoteUsers } from './Presence';
 // page's Yjs room. Loaded client-only (ssr:false) by DocView so the browser-only
 // y-websocket connection never touches the server render.
 
-export function LiveEditor({ docId, onLive }: { docId: string; onLive?: () => void }) {
+export function LiveEditor({
+  docId,
+  onLive,
+  onChildPagesWidgetChange,
+}: {
+  docId: string;
+  onLive?: () => void;
+  /** Forwarded to PageEditor — see its own doc for why DocView needs this live. */
+  onChildPagesWidgetChange?: (has: boolean) => void;
+}) {
   const collab = useYDoc(docId);
   const { getById, patchLocalDoc } = useDocs();
   const { identity, ready: identityReady, save: saveIdentity } = useIdentity();
@@ -84,6 +93,7 @@ export function LiveEditor({ docId, onLive }: { docId: string; onLive?: () => vo
           docId={docId}
           awareness={collab.awareness}
           identity={identity}
+          onChildPagesWidgetChange={onChildPagesWidgetChange}
         />
       ) : (
         <div className="min-h-[40vh] animate-pulse rounded-lg bg-line-soft" aria-hidden />
