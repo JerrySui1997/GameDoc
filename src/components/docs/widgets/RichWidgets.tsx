@@ -7,6 +7,7 @@ import { TONES } from '@/lib/templates/types';
 import { tonalName } from '@/lib/color/tonalName';
 import { blocksToPlainText, parseBody } from '@/lib/docs/blocks';
 import { useDocs } from '../DocsProvider';
+import { MentionField } from './MentionField';
 import type { WidgetProps } from './types';
 
 // The deck-level widgets: a lead banner (Hero), a responsive titled-card grid
@@ -56,8 +57,8 @@ export function Hero({ props, onChange }: WidgetProps) {
   const tone: HeroTone = HERO_TONES.includes(props.tone as HeroTone) ? (props.tone as HeroTone) : 'dark';
   const onLight = tone === 'light';
 
-  const [local, setLocal] = useState({ eyebrow, title, subtitle });
-  useEffect(() => setLocal({ eyebrow, title, subtitle }), [eyebrow, title, subtitle]);
+  const [local, setLocal] = useState({ eyebrow, title });
+  useEffect(() => setLocal({ eyebrow, title }), [eyebrow, title]);
   const set = (k: keyof typeof local, v: string) => setLocal((s) => ({ ...s, [k]: v }));
   const commit = (k: keyof typeof local) => { if (local[k] !== String(props[k] ?? '')) onChange({ [k]: local[k] }); };
 
@@ -87,10 +88,9 @@ export function Hero({ props, onChange }: WidgetProps) {
         placeholder="Title"
         className={clsx(fieldBase, placeholder, 'mt-2 text-3xl font-bold tracking-tight')}
       />
-      <input
-        value={local.subtitle}
-        onChange={(e) => set('subtitle', e.target.value)}
-        onBlur={() => commit('subtitle')}
+      <MentionField
+        value={subtitle}
+        onCommit={(v) => onChange({ subtitle: v })}
         placeholder="Subtitle"
         className={clsx(fieldBase, placeholder, 'mt-2 text-base', onLight ? 'text-muted' : 'text-white/70')}
       />
@@ -201,11 +201,10 @@ export function Cards({ props, onChange }: WidgetProps) {
                 placeholder="Title"
                 className="w-full border-none bg-transparent p-0 text-base font-semibold text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
               />
-              <textarea
+              <MentionField
+                multiline
                 value={c.body}
-                onChange={(e) => patch(i, { body: e.target.value })}
-                onBlur={() => commit(items)}
-                rows={3}
+                onCommit={(v) => commit(items.map((x, j) => (j === i ? { ...x, body: v } : x)))}
                 placeholder="Body"
                 className="w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed text-muted placeholder:text-muted/55 focus:outline-none focus:ring-0"
               />

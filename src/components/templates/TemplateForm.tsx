@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useDocs } from '@/components/docs/DocsProvider';
 import { useCollections } from '@/components/collections/CollectionsProvider';
+import { MentionMenu, mentionRank } from '@/components/docs/Mentions';
 import {
   asText,
   asStringList,
@@ -99,6 +100,25 @@ function RefListEditor({
 }) {
   const { docs, getById } = useDocs();
   const candidates = docs.filter((d) => !values.includes(d.id));
+
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const q = query.trim().toLowerCase();
+  const items = candidates
+    .filter((d) => !q || `${d.title} ${d.id}`.toLowerCase().includes(q))
+    .sort((a, b) => mentionRank(b, q) - mentionRank(a, q))
+    .slice(0, 8)
+    .map((d) => ({ id: d.id, title: d.title }));
+  const idx = Math.min(activeIndex, Math.max(0, items.length - 1));
+
+  const pick = (id: string) => {
+    onChange([...values, id]);
+    setQuery('');
+    setActiveIndex(0);
+  };
+
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1.5">
@@ -109,14 +129,31 @@ function RefListEditor({
           </span>
         ))}
       </div>
-      <select
-        value=""
-        onChange={(e) => { if (e.target.value) onChange([...values, e.target.value]); }}
-        className={inputClass}
-      >
-        <option value="">Add a reference…</option>
-        {candidates.map((d) => <option key={d.id} value={d.id}>{d.title}</option>)}
-      </select>
+      <div className="relative">
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setActiveIndex(0); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={(e) => {
+            if (!open || items.length === 0) return;
+            if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIndex(Math.min(idx + 1, items.length - 1)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIndex(Math.max(idx - 1, 0)); }
+            else if (e.key === 'Enter') { e.preventDefault(); const it = items[idx]; if (it) pick(it.id); }
+            else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+          }}
+          placeholder="Add a reference…"
+          className={inputClass}
+        />
+        {open && items.length > 0 && (
+          <MentionMenu
+            items={items}
+            activeIndex={idx}
+            onHover={setActiveIndex}
+            onPick={(i) => { const it = items[i]; if (it) pick(it.id); }}
+          />
+        )}
+      </div>
     </div>
   );
 }

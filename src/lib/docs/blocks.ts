@@ -348,10 +348,10 @@ export function parseLegend(body: string): PageLegend {
   return [];
 }
 
-/** Pull searchable text out of the rich widgets (hero/cards/swatch), whose
+/** Pull searchable text out of the rich widgets (hero/cards/swatch/labeled), whose
  *  human-readable content lives in props rather than `text`. Other widgets carry
  *  no prose worth indexing here. Best-effort: bad JSON simply contributes nothing. */
-function widgetPlainText(block: WidgetBlock): string {
+export function widgetPlainText(block: WidgetBlock): string {
   const parts: string[] = [];
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
   const parseArr = (raw: unknown): Record<string, unknown>[] => {
@@ -369,6 +369,8 @@ function widgetPlainText(block: WidgetBlock): string {
     for (const c of parseArr(block.props.cardsJson)) parts.push(str(c.eyebrow), str(c.title), str(c.body));
   } else if (block.type === 'swatch') {
     for (const s of parseArr(block.props.swatchesJson)) parts.push(str(s.name), str(s.hex));
+  } else if (block.type === 'labeled') {
+    parts.push(str(block.props.value));
   } else if (block.type === 'hexelMap') {
     // The map's meaning is inferred from its paint — surface the readable digest
     // (spaces, features, relations) so search and the agent's `format:'text'` see

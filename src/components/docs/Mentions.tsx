@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { NodeKind } from '@/lib/docs/graph';
 import type { MentionTarget } from '@/lib/docs/mentionTarget';
+import type { InlineMark } from '@/lib/docs/inlineFormat';
 
 // The presentation layer for an @page-id mention. A mention used to read as the
 // raw `@slug` token sitting in the prose; here it becomes a colored chip whose
@@ -73,6 +74,75 @@ export function inlineMentionClass(target: MentionTarget | null): string {
   return `rounded-[3px] ring-1 ring-inset ${kindStyle(target).mark}`;
 }
 
+// ── Formatting marks (bold/italic/code) — same paint-only technique ──────────
+// One literal tint per mark, deliberately drawn from the app's own chrome
+// palette (ink/teal/coffee) rather than the mention kind ramps above (violet/
+// sky/amber/emerald/rose) or brass/oxblood (already meaningful elsewhere as
+// brand-action / canon-locked) — marks carry no "kind" of their own to encode.
+const MARK_TINT: Record<InlineMark, string> = {
+  bold: 'bg-ink/10 ring-ink/15',
+  italic: 'bg-teal/10 ring-teal/20',
+  code: 'bg-coffee/15 ring-coffee/25',
+};
+
+/**
+ * A mark's appearance *while its block is being edited* — the same paint-only
+ * technique as inlineMentionClass above (tint + inset ring, never a font-weight/
+ * size/padding change): real bold/italic/monospace styling only becomes
+ * possible once the block blurs into chip/read mode (see PageEditor's
+ * MentionReadLayer), since a live textarea can't render per-character weight.
+ */
+export function inlineMarkClass(marks: InlineMark[]): string {
+  if (!marks.length) return '';
+  return `rounded-[3px] ring-1 ring-inset ${marks.map((m) => MARK_TINT[m]).join(' ')}`;
+}
+
+// ── @mention menu ─────────────────────────────────────────────────────────────
+// A compact page picker shown while typing `@query`. Mirrors the slash menu's
+// block-anchored dropdown; each row shows the page title and the slug that will
+// be inserted (so the writer learns the id). Picking inserts `@<id> `. Shared
+// between prose (PageEditor) and widget text (MentionField) — every `@`
+// typeahead in the app is this same menu.
+
+/** Rank a candidate against the query: prefix match beats a mere substring. */
+export function mentionRank(item: { id: string; title: string }, q: string): number {
+  if (!q) return 0;
+  return item.id.toLowerCase().startsWith(q) || item.title.toLowerCase().startsWith(q) ? 2 : 1;
+}
+
+export function MentionMenu({
+  items,
+  activeIndex,
+  onHover,
+  onPick,
+}: {
+  items: { id: string; title: string }[];
+  activeIndex: number;
+  onHover: (i: number) => void;
+  onPick: (i: number) => void;
+}) {
+  return (
+    <div className="absolute left-0 top-full z-20 mt-1 max-h-64 w-64 overflow-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+      <div className="px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-muted">Link a page</div>
+      {items.map((it, i) => (
+        <button
+          key={it.id}
+          type="button"
+          onMouseEnter={() => onHover(i)}
+          onMouseDown={(e) => { e.preventDefault(); onPick(i); }}
+          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
+            i === activeIndex ? 'bg-canvas text-ink' : 'text-muted'
+          }`}
+        >
+          <span className="flex-shrink-0 font-semibold text-teal">@</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.title}</span>
+          <span className="flex-shrink-0 font-mono text-[10px] text-muted">{it.id}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── The inline chip ──────────────────────────────────────────────────────────
 
 export function MentionChip({ id, raw, target, onOpen }: {
@@ -99,6 +169,8 @@ export function MentionChip({ id, raw, target, onOpen }: {
         // job is to open the panel, not to place a caret.
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onOpen(id); }}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
         title={target ? `${style.label}: ${target.title}` : `Missing page: ${id}`}
         className={`cursor-pointer rounded px-1 align-baseline text-[0.95em] font-semibold ring-1 ring-inset transition-colors ${style.chip}`}
       >
