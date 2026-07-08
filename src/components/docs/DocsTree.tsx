@@ -306,7 +306,7 @@ function HuePicker({
 // ── DocsTree ──────────────────────────────────────────────────────────────
 
 export function DocsTree() {
-  const { docs, tree, updateDoc } = useDocs();
+  const { docs, tree, patchDoc } = useDocs();
   const pathname = usePathname();
   const activeId = pathname.startsWith('/docs/') ? decodeURIComponent(pathname.slice('/docs/'.length)) : null;
   const [adding, setAdding] = useState(false);
@@ -356,12 +356,14 @@ export function DocsTree() {
 
       const siblingCount = docs.filter((d) => d.parentId === targetId).length;
       try {
-        await updateDoc(did, { parentId: targetId, order: siblingCount });
+        // patchDoc (PATCH), not a full PUT: a move must never write this
+        // client's body snapshot over a page someone is live-editing.
+        await patchDoc(did, { parentId: targetId, order: siblingCount });
       } catch (err) {
         console.error('Failed to move page:', err);
       }
     },
-    [docs, updateDoc],
+    [docs, patchDoc],
   );
 
   // Detach: drop onto the left strip to make a page top-level (parentId null)
@@ -378,11 +380,11 @@ export function DocsTree() {
 
     const rootCount = docs.filter((d) => d.parentId === null).length;
     try {
-      await updateDoc(did, { parentId: null, order: rootCount });
+      await patchDoc(did, { parentId: null, order: rootCount });
     } catch (err) {
       console.error('Failed to detach page:', err);
     }
-  }, [docs, updateDoc]);
+  }, [docs, patchDoc]);
 
   const dragContextValue: DragContextValue = {
     draggedId,
