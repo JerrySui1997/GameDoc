@@ -20,6 +20,10 @@ dist/
 # local content snapshots (left on disk; git history is the version trail from here on)
 src/data/docs/content.backup-*.json
 
+# per-user runtime content (seeded on first sign-in, not source — same reasoning
+# as auth.db living outside the repo; point DATA_DIR at a persistent volume in prod)
+src/data/users/
+
 # board reference images — real files on the persistent volume, not git-tracked
 src/data/boards/images/
 

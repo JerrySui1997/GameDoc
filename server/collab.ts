@@ -5,6 +5,7 @@
 // all shared state lives behind one process and one volume. The wiring lives in
 // server/collab-core.ts; this file is just the standalone HTTP host.
 
+import './load-env';
 import http from 'http';
 import { attachCollab, collabDbDir } from './collab-core';
 

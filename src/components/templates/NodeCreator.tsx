@@ -15,10 +15,13 @@ import { serializeBlocks } from '@/lib/docs/blocks';
  */
 export function NodeCreator({
   parentId,
+  basePath = '/docs',
   onDone,
   onCancel,
 }: {
   parentId: string | null;
+  /** Personal spaces (src/app/(personal)/app) pass '/app/docs'. */
+  basePath?: string;
   onDone?: () => void;
   onCancel: () => void;
 }) {
@@ -45,7 +48,7 @@ export function NodeCreator({
       const body = style ? serializeBlocks(styleToBlocks(style)) : '';
       const created = await createDoc({ id, title: trimmed, parentId, body });
       onDone?.();
-      router.push(`/docs/${created.id}`);
+      router.push(`${basePath}/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create page');
     } finally {

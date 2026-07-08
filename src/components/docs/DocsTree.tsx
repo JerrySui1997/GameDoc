@@ -37,7 +37,17 @@ function useDragContext() {
 
 // ── Components ────────────────────────────────────────────────────────────
 
-function TreeNode({ node, activeId, depth }: { node: DocTreeNode; activeId: string | null; depth: number }) {
+function TreeNode({
+  node,
+  activeId,
+  depth,
+  basePath,
+}: {
+  node: DocTreeNode;
+  activeId: string | null;
+  depth: number;
+  basePath: string;
+}) {
   const { docs, editing } = useDocs();
   const agentEditing = node.id in editing;
   const { draggedId, dropTargetId, startDrag, endDrag, setDropTarget, commitDrop, isValidDrop } = useDragContext();
@@ -137,7 +147,7 @@ function TreeNode({ node, activeId, depth }: { node: DocTreeNode; activeId: stri
           <span className="h-5 w-5 shrink-0" />
         )}
 
-        <Link href={`/docs/${node.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-sm font-medium">
+        <Link href={`${basePath}/${node.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-sm font-medium">
           <span className="truncate">{node.title}</span>
           {agentEditing && (
             <span
@@ -164,7 +174,7 @@ function TreeNode({ node, activeId, depth }: { node: DocTreeNode; activeId: stri
       {hasChildren && open && (
         <ul className="mt-0.5 space-y-0.5">
           {node.children.map((child) => (
-            <TreeNode key={child.id} node={child} activeId={activeId} depth={depth + 1} />
+            <TreeNode key={child.id} node={child} activeId={activeId} depth={depth + 1} basePath={basePath} />
           ))}
         </ul>
       )}
@@ -305,10 +315,11 @@ function HuePicker({
 
 // ── DocsTree ──────────────────────────────────────────────────────────────
 
-export function DocsTree() {
+export function DocsTree({ basePath = '/docs' }: { basePath?: string } = {}) {
   const { docs, tree, patchDoc } = useDocs();
   const pathname = usePathname();
-  const activeId = pathname.startsWith('/docs/') ? decodeURIComponent(pathname.slice('/docs/'.length)) : null;
+  const prefix = `${basePath}/`;
+  const activeId = pathname.startsWith(prefix) ? decodeURIComponent(pathname.slice(prefix.length)) : null;
   const [adding, setAdding] = useState(false);
 
   const draggedIdRef = useRef<string | null>(null);
@@ -415,7 +426,7 @@ export function DocsTree() {
         </div>
         {adding && (
           <div className="mb-2 px-1">
-            <NodeCreator parentId={null} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
+            <NodeCreator parentId={null} basePath={basePath} onDone={() => setAdding(false)} onCancel={() => setAdding(false)} />
           </div>
         )}
 
@@ -453,7 +464,7 @@ export function DocsTree() {
 
           <ul className="min-w-0 flex-1 space-y-0.5">
             {tree.map((node) => (
-              <TreeNode key={node.id} node={node} activeId={activeId} depth={0} />
+              <TreeNode key={node.id} node={node} activeId={activeId} depth={0} basePath={basePath} />
             ))}
           </ul>
         </div>

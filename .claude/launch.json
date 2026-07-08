@@ -15,16 +15,22 @@
       "port": 3140
     },
     {
+      "name": "collab",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:collab"],
+      "port": 1234
+    },
+    {
       "name": "prod",
       "runtimeExecutable": "node",
       "runtimeArgs": ["dist/server.js"],
       "port": 3000
     },
     {
-      "name": "collab",
+      "name": "dev:all",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:collab"],
-      "port": 1234
+      "runtimeArgs": ["run", "dev:all"],
+      "port": 3000
     }
   ]
 }

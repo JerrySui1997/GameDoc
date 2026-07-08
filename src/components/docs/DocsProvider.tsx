@@ -38,9 +38,17 @@ async function parseError(res: Response): Promise<string> {
 
 export function DocsProvider({
   initialDocs,
+  apiBase = '/api/docs',
+  enableAgentStream = true,
   children,
 }: {
   initialDocs: DocNode[];
+  /** Personal spaces (src/app/(personal)/app) point this at /api/app/docs. */
+  apiBase?: string;
+  /** The agent-edit SSE stream (src/lib/agent/bus.ts) is a flat, unscoped
+   *  singleton with no per-user concept — personal spaces disable it rather
+   *  than leak into the owner's/other users' streams. */
+  enableAgentStream?: boolean;
   children: React.ReactNode;
 }) {
   const [docs, setDocs] = useState<DocNode[]>(initialDocs);
@@ -58,7 +66,7 @@ export function DocsProvider({
   // since mount) keeps it, and docs deleted since mount are not resurrected.
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/docs')
+    fetch(apiBase)
       .then((res) => (res.ok ? res.json() : null))
       .then((fresh: DocNode[] | null) => {
         if (!fresh || cancelled) return;
@@ -67,7 +75,7 @@ export function DocsProvider({
       })
       .catch(() => { /* transient; the tree.changed refetch or a reload recovers */ });
     return () => { cancelled = true; };
-  }, []);
+  }, [apiBase]);
 
   // Apply a doc change pushed by an out-of-band writer (the MCP) into local
   // state. Mirrors the setDocs shapes used by create/patch/deleteDoc below so
@@ -90,7 +98,9 @@ export function DocsProvider({
 
   // Subscribe to the live agent-edit stream. Best-effort: if the endpoint is
   // unavailable the EventSource simply keeps retrying; the app works without it.
+  // Personal spaces disable this — see enableAgentStream's doc comment above.
   useEffect(() => {
+    if (!enableAgentStream) return;
     const source = new EventSource('/api/agent/stream');
     source.onmessage = (e) => {
       let msg: ServerMessage;
@@ -122,7 +132,7 @@ export function DocsProvider({
           // A peer created/deleted/reparented a page via REST — refetch the tree
           // so this client's sidebar reflects it live. (Page *content* and title
           // sync through Yjs, not here.)
-          fetch('/api/docs')
+          fetch(apiBase)
             .then((res) => (res.ok ? res.json() : null))
             .then((fresh: DocNode[] | null) => { if (fresh) setDocs(fresh); })
             .catch(() => { /* transient; next change or reload recovers */ });
@@ -130,7 +140,7 @@ export function DocsProvider({
       }
     };
     return () => source.close();
-  }, [applyCommit]);
+  }, [applyCommit, apiBase, enableAgentStream]);
 
   const createDoc = useCallback<DocsContextValue['createDoc']>(async (input) => {
     const siblings = docs.filter((d) => d.parentId === input.parentId);
@@ -143,7 +153,7 @@ export function DocsProvider({
       body: input.body ?? '',
     };
 
-    const res = await fetch('/api/docs', {
+    const res = await fetch(apiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -153,10 +163,10 @@ export function DocsProvider({
     const created: DocNode = await res.json();
     setDocs((prev) => [...prev, created]);
     return created;
-  }, [docs]);
+  }, [docs, apiBase]);
 
   const patchDoc = useCallback<DocsContextValue['patchDoc']>(async (id, patch) => {
-    const res = await fetch(`/api/docs/${id}`, {
+    const res = await fetch(`${apiBase}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -166,14 +176,14 @@ export function DocsProvider({
     const updated: DocNode = await res.json();
     setDocs((prev) => prev.map((d) => (d.id === id ? updated : d)));
     return updated;
-  }, []);
+  }, [apiBase]);
 
   const patchLocalDoc = useCallback<DocsContextValue['patchLocalDoc']>((id, patch) => {
     setDocs((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   }, []);
 
   const deleteDoc = useCallback<DocsContextValue['deleteDoc']>(async (id) => {
-    const res = await fetch(`/api/docs/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await parseError(res));
 
     const target = docs.find((d) => d.id === id);
@@ -182,7 +192,7 @@ export function DocsProvider({
         .filter((d) => d.id !== id)
         .map((d) => (d.parentId === id ? { ...d, parentId: target?.parentId ?? null } : d)),
     );
-  }, [docs]);
+  }, [docs, apiBase]);
 
   const value = useMemo<DocsContextValue>(
     () => ({ docs, tree: buildDocTree(docs), getById, createDoc, patchDoc, patchLocalDoc, deleteDoc, editing, agentRevisions }),

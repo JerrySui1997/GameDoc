@@ -82,16 +82,60 @@ Add to `claude_desktop_config.json`
 
 Then restart the app.
 
+## Modes: local vs. live
+
+By default (the `gamedoc` registration above) every tool reads and writes the
+local repo checkout: `src/data/docs/content.json` on disk, plus this
+machine's own collab relay for a page's body/title once its room exists.
+
+Setting `GAMEDOC_APP_URL` switches every doc tool to a **different**,
+distinctly-named registration — `gamedoc-live` in [`.mcp.json`](../.mcp.json)
+— that reads and writes a *deployed* site instead (Railway, by default). This
+is deliberately a separate MCP server registration, not an env var you flip
+on the same one: local-vs-live is two different tool namespaces in Claude
+Code (`mcp__gamedoc__*` vs `mcp__gamedoc-live__*`), so a "just testing
+locally" edit can never land on production by accident. When live mode is
+active, every mutating tool's title gets an `⚠ LIVE` prefix in Claude Code's
+tool list as a second, visible confirmation before you call it.
+
+Live mode still respects the same two write surfaces the app itself has:
+tree metadata (`parentId`/`order`/`hue`) goes through the deployed site's
+REST API; a page's title/body always goes through a live Yjs peer connection
+to that page's actual collab room (never REST), because once a page has ever
+been opened, its content is owned by that room — a raw file/REST write would
+just get silently overwritten by the room's own next autosave. See
+`mcp/src/collab.ts` and the mode-switch comment at the top of `mcp/src/data.ts`
+for the full reasoning.
+
+**Widget-drop guard:** `gamedoc_update_doc`'s `body` param accepts plain
+markdown, but plain markdown can't represent widget blocks (`characterCard`,
+`refs`, `hexelMap`, etc). In both modes, an update that would silently delete
+existing widgets off a page is refused (naming the specific blocks) unless
+you pass `dropWidgets:true`. Use `gamedoc_get_doc` with `format:"raw"` first
+to get the full block JSON if you need to preserve widgets while editing.
+
+**Auth:** the deployed site's mutation routes (`POST`/`PUT`/`PATCH`/`DELETE`
+under `/api/docs`) are gated by a `GAMEDOC_AGENT_TOKEN` shared secret when one
+is set server-side (see `.env.example`) — `gamedoc-live`'s `.mcp.json` entry
+sends it via `${GAMEDOC_AGENT_TOKEN}` shell-env expansion, so export that
+variable in the shell that launches Claude Code before using `gamedoc-live`.
+**The `/collab` websocket itself is not gated** — the browser editor and this
+live-write path both ride the same channel every visitor's browser already
+uses, and a token baked into the public JS bundle wouldn't be a real secret
+anyway. Real session auth for the whole site is a separate, bigger project.
+
 ## Layout
 
 ```
 mcp/
   src/
     server.ts   tool definitions + stdio transport
-    data.ts     loaders that reuse the website's own pure helpers
+    data.ts     loaders/dispatchers; mode switch + widget-drop guard live here
+    collab.ts   Yjs peer client for live-mode body/title writes
+    notify.ts   best-effort "AI agent is editing" presence signal
   package.json
   tsconfig.json
 ```
 
 `GAMEDOC_ROOT` overrides the project root if you ever run the server from
-outside the repo.
+outside the repo (local mode only — ignored once `GAMEDOC_APP_URL` is set).

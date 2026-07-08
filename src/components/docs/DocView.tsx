@@ -24,7 +24,23 @@ const LiveEditor = dynamic(
  *  `initialBody` is the server-rendered body snapshot from docs/[id]/page.tsx —
  *  the provider's docs are body-less until its background hydration lands, so
  *  the static paint can't rely on `getById(docId).body`. */
-export function DocView({ docId, initialBody }: { docId: string; initialBody: string | null }) {
+export function DocView({
+  docId,
+  initialBody,
+  basePath = '/docs',
+  rootHref = '/',
+  roomId,
+}: {
+  docId: string;
+  initialBody: string | null;
+  /** Personal spaces (src/app/(personal)/app) pass '/app/docs'. */
+  basePath?: string;
+  /** Where "delete a top-level page" and the parentless case send you.
+   *  Personal spaces pass '/app'. */
+  rootHref?: string;
+  /** Yjs room name, forwarded to LiveEditor; defaults to the bare docId. */
+  roomId?: string;
+}) {
   const { getById, docs, createDoc, deleteDoc, editing } = useDocs();
   const router = useRouter();
   const doc = getById(docId);
@@ -70,7 +86,7 @@ export function DocView({ docId, initialBody }: { docId: string; initialBody: st
     try {
       const created = await createDoc({ id, title: childTitle, parentId: doc!.id, body: '' });
       setAddingChild(false);
-      router.push(`/docs/${created.id}`);
+      router.push(`${basePath}/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add child');
     }
@@ -80,7 +96,7 @@ export function DocView({ docId, initialBody }: { docId: string; initialBody: st
     try {
       const parentId = doc!.parentId;
       await deleteDoc(doc!.id);
-      router.push(parentId ? `/docs/${parentId}` : '/');
+      router.push(parentId ? `${basePath}/${parentId}` : rootHref);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
@@ -160,7 +176,7 @@ export function DocView({ docId, initialBody }: { docId: string; initialBody: st
           until it's ready, then the static copy is dropped. */}
       <div className="grid">
         <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
-          <LiveEditor docId={doc.id} onLive={handleLive} onChildPagesWidgetChange={setInlineChildPages} />
+          <LiveEditor docId={doc.id} roomId={roomId} onLive={handleLive} onChildPagesWidgetChange={setInlineChildPages} />
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
@@ -180,7 +196,7 @@ export function DocView({ docId, initialBody }: { docId: string; initialBody: st
               .map((child) => (
                 <li key={child.id}>
                   <a
-                    href={`/docs/${child.id}`}
+                    href={`${basePath}/${child.id}`}
                     className="block rounded-xl border border-line bg-surface px-4 py-3 text-sm font-medium text-ink hover:border-brass hover:bg-brass-soft"
                   >
                     {child.title}

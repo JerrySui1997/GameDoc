@@ -13,3 +13,8 @@ export const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), 'src', 
 export function dataFile(collection: string): string {
   return path.join(DATA_DIR, collection, 'content.json');
 }
+
+/** Absolute path to a per-user collection's content.json under DATA_DIR. */
+export function userDataFile(userId: string, collection: string): string {
+  return path.join(DATA_DIR, 'users', userId, collection, 'content.json');
+}

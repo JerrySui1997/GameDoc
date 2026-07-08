@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { EB_Garamond } from 'next/font/google';
 import { cookies } from 'next/headers';
-import './globals.css';
+import '../globals.css';
 
 // The Character Studio panel's warm, journal aesthetic. Self-hosted by next/font
 // (no runtime network), exposed as a CSS var the .sp-* styles consume.
