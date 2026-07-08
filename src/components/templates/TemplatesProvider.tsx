@@ -24,9 +24,12 @@ async function parseError(res: Response): Promise<string> {
 
 export function TemplatesProvider({
   initialTemplates,
+  apiBase = '/api/templates',
   children,
 }: {
   initialTemplates: PageTemplate[];
+  /** Personal spaces (src/app/(personal)/app) point this at /api/app/templates. */
+  apiBase?: string;
   children: React.ReactNode;
 }) {
   const [templates, setTemplates] = useState<PageTemplate[]>(initialTemplates);
@@ -34,7 +37,7 @@ export function TemplatesProvider({
   const getById = useCallback((id: string) => templates.find((t) => t.id === id), [templates]);
 
   const createTemplate = useCallback<TemplatesContextValue['createTemplate']>(async (template) => {
-    const res = await fetch('/api/templates', {
+    const res = await fetch(apiBase, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(template),
@@ -43,10 +46,10 @@ export function TemplatesProvider({
     const created: PageTemplate = await res.json();
     setTemplates((prev) => [...prev, created]);
     return created;
-  }, []);
+  }, [apiBase]);
 
   const updateTemplate = useCallback<TemplatesContextValue['updateTemplate']>(async (id, template) => {
-    const res = await fetch(`/api/templates/${id}`, {
+    const res = await fetch(`${apiBase}/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(template),
@@ -55,13 +58,13 @@ export function TemplatesProvider({
     const updated: PageTemplate = await res.json();
     setTemplates((prev) => prev.map((t) => (t.id === id ? updated : t)));
     return updated;
-  }, []);
+  }, [apiBase]);
 
   const deleteTemplate = useCallback<TemplatesContextValue['deleteTemplate']>(async (id) => {
-    const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(await parseError(res));
     setTemplates((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  }, [apiBase]);
 
   const value = useMemo<TemplatesContextValue>(
     () => ({ templates, getById, createTemplate, updateTemplate, deleteTemplate }),

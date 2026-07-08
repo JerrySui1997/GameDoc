@@ -23,8 +23,15 @@ import path from 'path';
 
 const writeQueues = new Map<string, Promise<unknown>>();
 
-/** Run `fn` after any in-flight write to `key` settles; serialize per key. */
-function enqueue<T>(key: string, fn: () => Promise<T>): Promise<T> {
+/**
+ * Run `fn` after any in-flight operation queued under `key` settles;
+ * serializes per key. Exported so callers with their own read-modify-write
+ * sequences over a keyed resource (e.g. server/collab-core.ts's debounced
+ * content.json write-back) can serialize a whole read+write cycle, not just
+ * the final write — this store's own per-path key space (absolute file
+ * paths) never collides with such callers' own key conventions.
+ */
+export function enqueue<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = writeQueues.get(key) ?? Promise.resolve();
   // Run `fn` regardless of whether the previous write resolved or rejected.
   const run = prev.then(fn, fn);
@@ -86,6 +93,10 @@ export async function writeJsonFile(file: string, data: unknown): Promise<void> 
   const body = `${JSON.stringify(data, null, 2)}\n`;
   await enqueue(file, async () => {
     const dir = path.dirname(file);
+    // Per-user scoped paths (src/lib/store/paths.ts's userDataFile) don't
+    // exist until a user's first write — recursive mkdir is a no-op when the
+    // directory is already there, so this is free for every existing caller.
+    await fs.mkdir(dir, { recursive: true });
     // Unique temp name so parallel callers never share a temp file. The
     // per-path queue already serializes, but this is cheap insurance.
     const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`);

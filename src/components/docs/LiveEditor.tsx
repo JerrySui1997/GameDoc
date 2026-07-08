@@ -12,8 +12,19 @@ import { NamePrompt, PresenceAvatars, useRemoteUsers } from './Presence';
 // page's Yjs room. Loaded client-only (ssr:false) by DocView so the browser-only
 // y-websocket connection never touches the server render.
 
-export function LiveEditor({ docId, onLive }: { docId: string; onLive?: () => void }) {
-  const collab = useYDoc(docId);
+export function LiveEditor({
+  docId,
+  roomId,
+  onLive,
+}: {
+  docId: string;
+  /** Yjs room name; defaults to the bare docId. Personal spaces pass
+   *  `user:{userId}:{docId}` so their rooms live in a separate namespace
+   *  (see server/collab-core.ts's parseRoom). */
+  roomId?: string;
+  onLive?: () => void;
+}) {
+  const collab = useYDoc(roomId ?? docId);
   const { getById, patchLocalDoc } = useDocs();
   const { identity, ready: identityReady, save: saveIdentity } = useIdentity();
   const remoteUsers = useRemoteUsers(collab?.awareness ?? null);

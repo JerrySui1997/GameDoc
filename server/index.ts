@@ -9,6 +9,7 @@ import http from 'http';
 import next from 'next';
 import { attachCollab } from './collab-core';
 import { ensureSeed } from './seed';
+import { ensureAuthDb } from './migrate';
 
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 3000);
@@ -16,6 +17,7 @@ const PORT = Number(process.env.PORT || 3000);
 async function main(): Promise<void> {
   // Populate a fresh volume before anything reads content.json.
   await ensureSeed();
+  await ensureAuthDb();
 
   const app = next({ dev: false, hostname: HOST, port: PORT });
   const handle = app.getRequestHandler();
