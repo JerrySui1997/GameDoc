@@ -56,7 +56,7 @@ import {
   type PageLegend,
 } from '@/lib/docs/legend';
 import { detectCandidates, type CollectionCandidate } from '@/lib/collections/detect';
-import { findMentionQuery } from '@/lib/docs/mentions';
+import { extractMentionIds, findMentionQuery } from '@/lib/docs/mentions';
 import { splitInline, toggleInlineMark, type InlineSegment, type InlineMark } from '@/lib/docs/inlineFormat';
 import { buildMentionIndex, type MentionTarget } from '@/lib/docs/mentionTarget';
 import { CollectionTagOverlay } from '@/components/collections/CollectionTagOverlay';
@@ -67,7 +67,7 @@ import { PROSE_CATALOG, WIDGET_CATALOG } from './catalog';
 import type { Awareness } from './useYDoc';
 import type { Identity } from './identity';
 import { RemoteBlockBadges, RemoteBlockAccent, userField, type RemoteUser } from './Presence';
-import { MentionChip, MentionPanel, MentionMenu, mentionRank, inlineMentionClass, inlineMarkClass } from './Mentions';
+import { MentionChip, MentionPanel, MentionMenu, mentionRank, ReferenceLegend, inlineMentionClass, inlineMarkClass, type ReferenceKind } from './Mentions';
 import type { ReactNode } from 'react';
 
 // ── The page editor ──────────────────────────────────────────────────────────
@@ -278,6 +278,21 @@ export function PageEditor({
   const mentionTargets = useMemo(() => buildMentionIndex(docs), [docs]);
   // The mention whose detail panel is currently sliding in (null = closed).
   const [openMentionId, setOpenMentionId] = useState<string | null>(null);
+
+  // The kinds of things this page's prose references — the derived, read-only
+  // reference legend shown at the top of the page whenever mentions exist.
+  // Code blocks are skipped to match chip rendering (they never draw chips).
+  const referencedKinds = useMemo(() => {
+    const kinds = new Set<ReferenceKind>();
+    for (const block of blocks) {
+      if (isWidgetBlock(block) || block.type === 'code') continue;
+      for (const id of extractMentionIds(block.text)) {
+        const target = mentionTargets.get(id);
+        kinds.add(target ? target.kind : 'missing');
+      }
+    }
+    return kinds;
+  }, [blocks, mentionTargets]);
 
   // Whole-block multi-selection (Notion-style): the inclusive contiguous range of
   // blocks between `anchorId` and `focusId` in render order. Native text selection
@@ -1065,6 +1080,7 @@ export function PageEditor({
   return (
     <div className="flex gap-4" onKeyDown={handleHistoryKey}>
       <div className="min-w-0 flex-1">
+        <ReferenceLegend kinds={referencedKinds} />
         <LegendBar
           legend={legend}
           onAdd={addLegendEntry}
