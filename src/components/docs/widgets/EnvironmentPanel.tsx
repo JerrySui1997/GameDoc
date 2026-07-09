@@ -3,48 +3,39 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseJson } from '../blocks/shared';
 import {
-  asStudioCharacter,
-  DEFAULT_STAMPS,
-  makeSection,
-  makeStat,
-  PIP_MAX,
-  SECTION_ALIGNS,
-  SECTION_KINDS,
-  SECTION_TITLES,
-  SECTION_WIDTHS,
-  STAMP_PALETTE,
-  STAT_TYPES,
-  STAT_TYPE_LABELS,
-  TIER_COLORS,
-  TIER_LABELS,
-  type Section,
-  type SectionKind,
-  type Stamp,
-  type Stat,
-  type StatType,
-  type StudioCharacter,
-} from '@/lib/studio/types';
+  asStudioEnvironment,
+  ATMOSPHERE_STAMP_PALETTE,
+  DEFAULT_ATMOSPHERE_STAMPS,
+  ENV_SECTION_ALIGNS,
+  ENV_SECTION_KINDS,
+  ENV_SECTION_TITLES,
+  ENV_SECTION_WIDTHS,
+  ENV_TIER_COLORS,
+  ENV_TIER_LABELS,
+  makeEnvSection,
+  type AtmosphereStamp,
+  type EnvSection,
+  type EnvSectionKind,
+  type StudioEnvironment,
+} from '@/lib/environment/types';
+import { makeStat, PIP_MAX, STAT_TYPES, STAT_TYPE_LABELS, type Stat, type StatType } from '@/lib/studio/types';
 import { ArtSection, NoteArea, nextIn, SectionLabel, SP_ALIGN_GLYPH, SP_WIDTH_GLYPH, StatRow } from './studioParts';
 import type { WidgetProps } from './types';
 
-// ── Character Studio panel ──────────────────────────────────────────────────
-// A single full-width widget that renders a character editor in a fully custom
-// warm aesthetic (all styling in the `.sp-*` classes in globals.css). The sheet
-// is nothing but an ordered list of *sections* the designer fully controls —
-// identity included: every section (codename, code, tier, flag, stats,
-// personality, notes, art, contract) can be moved (▲▼), removed (✕), and new
-// ones added from the "+ section" menu. The titlebar is brand chrome only.
-//
-// The whole sheet is stored as JSON in one prop (`dataJson`). Text fields edit
-// local state for instant feedback and commit on blur (so a keystroke never
-// re-renders the document and steals focus); discrete actions commit immediately.
+// ── Environment Studio panel ─────────────────────────────────────────────────
+// Sibling of Character Studio (StudioPanel.tsx) for locations/environments —
+// same section-list sheet engine (imported from studioParts.tsx), same warm
+// `.sp-*` aesthetic (no new CSS), only the section-kind vocabulary and default
+// seed data differ (place name / code / tier / flag / stats / atmosphere /
+// notes / art / contract). See studio/types.ts's StudioPanel for the fuller
+// rationale — this file mirrors it structurally, field for field.
 
 // ── The panel ────────────────────────────────────────────────────────────────
 
-export function StudioPanel({ props, onChange }: WidgetProps) {
+export function EnvironmentPanel({ props, onChange }: WidgetProps) {
   const dataJson = String(props.dataJson ?? '');
-  const stored = asStudioCharacter(parseJson<unknown>(dataJson, {}));
-  const [data, setData] = useState<StudioCharacter>(stored);
+  const stored = asStudioEnvironment(parseJson<unknown>(dataJson, {}));
+  const [data, setData] = useState<StudioEnvironment>(stored);
   const dataRef = useRef(data);
   const lastJson = useRef(dataJson);
   const [adding, setAdding] = useState(false);
@@ -54,25 +45,25 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
   useEffect(() => {
     if (dataJson !== lastJson.current) {
       lastJson.current = dataJson;
-      const next = asStudioCharacter(parseJson<unknown>(dataJson, {}));
+      const next = asStudioEnvironment(parseJson<unknown>(dataJson, {}));
       dataRef.current = next;
       setData(next);
     }
   }, [dataJson]);
 
-  const commit = (next: StudioCharacter) => {
+  const commit = (next: StudioEnvironment) => {
     const json = JSON.stringify(next);
     lastJson.current = json;
     onChange({ dataJson: json });
   };
   /** Local-only update (instant typing feedback). */
-  const patch = (p: Partial<StudioCharacter>) => {
+  const patch = (p: Partial<StudioEnvironment>) => {
     const next = { ...dataRef.current, ...p };
     dataRef.current = next;
     setData(next);
   };
   /** Update + persist (for discrete actions: clicks, toggles, uploads). */
-  const patchCommit = (p: Partial<StudioCharacter>) => {
+  const patchCommit = (p: Partial<StudioEnvironment>) => {
     const next = { ...dataRef.current, ...p };
     dataRef.current = next;
     setData(next);
@@ -81,12 +72,12 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
   const commitNow = () => commit(dataRef.current);
 
   // ── Section operations ──────────────────────────────────────────────────
-  const mapSections = (fn: (s: Section) => Section) => dataRef.current.sections.map(fn);
+  const mapSections = (fn: (s: EnvSection) => EnvSection) => dataRef.current.sections.map(fn);
   /** Local section edit (typing). */
-  const editSection = (id: string, p: Partial<Section>) =>
+  const editSection = (id: string, p: Partial<EnvSection>) =>
     patch({ sections: mapSections((s) => (s.id === id ? { ...s, ...p } : s)) });
   /** Section edit + persist (discrete actions). */
-  const editSectionCommit = (id: string, p: Partial<Section>) =>
+  const editSectionCommit = (id: string, p: Partial<EnvSection>) =>
     patchCommit({ sections: mapSections((s) => (s.id === id ? { ...s, ...p } : s)) });
   const removeSection = (id: string) =>
     patchCommit({ sections: dataRef.current.sections.filter((s) => s.id !== id) });
@@ -98,9 +89,9 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
     patchCommit({ sections: arr });
   };
-  const addSection = (kind: SectionKind) => {
+  const addSection = (kind: EnvSectionKind) => {
     setAdding(false);
-    patchCommit({ sections: [...dataRef.current.sections, makeSection(kind)] });
+    patchCommit({ sections: [...dataRef.current.sections, makeEnvSection(kind)] });
   };
 
   return (
@@ -133,12 +124,12 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
             <div className="sp-sec-gutter">
               <button type="button" className="sp-sec-btn" title="Move up" disabled={i === 0} onClick={() => moveSection(section.id, -1)}>▲</button>
               <button type="button" className="sp-sec-btn" title="Move down" disabled={i === data.sections.length - 1} onClick={() => moveSection(section.id, 1)}>▼</button>
-              <button type="button" className="sp-sec-btn" title={`Width: ${section.width} — click to cycle`} onClick={() => editSectionCommit(section.id, { width: nextIn(SECTION_WIDTHS, section.width) })}>{SP_WIDTH_GLYPH[section.width]}</button>
-              <button type="button" className="sp-sec-btn" title={`Vertical align: ${section.align} — click to cycle`} onClick={() => editSectionCommit(section.id, { align: nextIn(SECTION_ALIGNS, section.align) })}>{SP_ALIGN_GLYPH[section.align]}</button>
+              <button type="button" className="sp-sec-btn" title={`Width: ${section.width} — click to cycle`} onClick={() => editSectionCommit(section.id, { width: nextIn(ENV_SECTION_WIDTHS, section.width) })}>{SP_WIDTH_GLYPH[section.width]}</button>
+              <button type="button" className="sp-sec-btn" title={`Vertical align: ${section.align} — click to cycle`} onClick={() => editSectionCommit(section.id, { align: nextIn(ENV_SECTION_ALIGNS, section.align) })}>{SP_ALIGN_GLYPH[section.align]}</button>
               <button type="button" className="sp-sec-btn sp-sec-del" title="Remove section" onClick={() => removeSection(section.id)}>✕</button>
             </div>
             <div className="sp-sec-body">
-              <SectionContent
+              <EnvSectionContent
                 section={section}
                 edit={(p) => editSection(section.id, p)}
                 editCommit={(p) => editSectionCommit(section.id, p)}
@@ -152,9 +143,9 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
         <div className="sp-add">
           {adding ? (
             <div className="sp-add-menu">
-              {SECTION_KINDS.map((kind) => (
+              {ENV_SECTION_KINDS.map((kind) => (
                 <button key={kind} type="button" className="sp-add-item" onClick={() => addSection(kind)}>
-                  {SECTION_TITLES[kind]}
+                  {ENV_SECTION_TITLES[kind]}
                 </button>
               ))}
               <button type="button" className="sp-add-cancel" onClick={() => setAdding(false)}>cancel</button>
@@ -170,26 +161,26 @@ export function StudioPanel({ props, onChange }: WidgetProps) {
 
 // ── Per-kind section renderers ───────────────────────────────────────────────
 
-function SectionContent({
+function EnvSectionContent({
   section, edit, editCommit, commitNow,
 }: {
-  section: Section;
-  edit: (p: Partial<Section>) => void;
-  editCommit: (p: Partial<Section>) => void;
+  section: EnvSection;
+  edit: (p: Partial<EnvSection>) => void;
+  editCommit: (p: Partial<EnvSection>) => void;
   commitNow: () => void;
 }) {
   switch (section.kind) {
     case 'rule':
       return <SectionLabel value={section.label} onChange={(v) => edit({ label: v })} onBlur={commitNow} />;
 
-    case 'codename':
+    case 'placename':
       return (
         <input
           className="sp-codename"
           value={section.text}
           onChange={(e) => edit({ text: e.target.value })}
           onBlur={commitNow}
-          placeholder="CODENAME"
+          placeholder="PLACE NAME"
         />
       );
 
@@ -200,7 +191,7 @@ function SectionContent({
           value={section.text}
           onChange={(e) => edit({ text: e.target.value })}
           onBlur={commitNow}
-          placeholder="T-XX"
+          placeholder="L-XX"
           spellCheck={false}
         />
       );
@@ -214,10 +205,10 @@ function SectionContent({
               type="button"
               onClick={() => editCommit({ tier: t })}
               className="sp-tier-btn"
-              style={section.tier === t ? { background: TIER_COLORS[t], borderColor: TIER_COLORS[t], color: '#fff' } : { borderColor: TIER_COLORS[t], color: TIER_COLORS[t] }}
+              style={section.tier === t ? { background: ENV_TIER_COLORS[t], borderColor: ENV_TIER_COLORS[t], color: '#fff' } : { borderColor: ENV_TIER_COLORS[t], color: ENV_TIER_COLORS[t] }}
             >T{t}</button>
           ))}
-          <span className="sp-tier-name">{TIER_LABELS[section.tier]}</span>
+          <span className="sp-tier-name">{ENV_TIER_LABELS[section.tier]}</span>
         </div>
       );
 
@@ -242,11 +233,11 @@ function SectionContent({
     case 'art':
       return <ArtSection art={section.art} onSet={(art) => editCommit({ art })} />;
 
-    case 'personality':
-      return <PersonalitySection section={section} edit={edit} editCommit={editCommit} commitNow={commitNow} />;
+    case 'atmosphere':
+      return <AtmosphereSection section={section} edit={edit} editCommit={editCommit} commitNow={commitNow} />;
 
     case 'stats':
-      return <StatsSection section={section} edit={edit} editCommit={editCommit} commitNow={commitNow} />;
+      return <EnvStatsSection section={section} edit={edit} editCommit={editCommit} commitNow={commitNow} />;
 
     case 'contract':
       return (
@@ -257,7 +248,7 @@ function SectionContent({
           </div>
           <div className="sp-rail-open">
             <div className="sp-rail-tag">Design space<br /><span>OPEN</span></div>
-            <NoteArea value={section.open} onChange={(v) => edit({ open: v })} onBlur={commitNow} placeholder="Open for design — visual persona, theme, free choices…" />
+            <NoteArea value={section.open} onChange={(v) => edit({ open: v })} onBlur={commitNow} placeholder="Open for design — mood, dressing, free choices…" />
           </div>
         </div>
       );
@@ -273,12 +264,12 @@ function SectionContent({
   }
 }
 
-function StatsSection({
+function EnvStatsSection({
   section, edit, editCommit, commitNow,
 }: {
-  section: Section;
-  edit: (p: Partial<Section>) => void;
-  editCommit: (p: Partial<Section>) => void;
+  section: EnvSection;
+  edit: (p: Partial<EnvSection>) => void;
+  editCommit: (p: Partial<EnvSection>) => void;
   commitNow: () => void;
 }) {
   const stats = section.stats;
@@ -393,39 +384,39 @@ function StatsSection({
   );
 }
 
-function PersonalitySection({
+function AtmosphereSection({
   section, edit, editCommit, commitNow,
 }: {
-  section: Section;
-  edit: (p: Partial<Section>) => void;
-  editCommit: (p: Partial<Section>) => void;
+  section: EnvSection;
+  edit: (p: Partial<EnvSection>) => void;
+  editCommit: (p: Partial<EnvSection>) => void;
   commitNow: () => void;
 }) {
-  // Empty stamps (a pre-stamps personality section) fall back to the default
+  // Empty stamps (a pre-stamps atmosphere section) fall back to the default
   // vocabulary; the first edit materializes it onto the section.
-  const stamps = section.stamps.length ? section.stamps : DEFAULT_STAMPS;
-  const selected = section.personality;
+  const stamps = section.stamps.length ? section.stamps : DEFAULT_ATMOSPHERE_STAMPS;
+  const selected = section.atmosphere;
 
   const renameStamp = (i: number, key: string) => {
     const old = stamps[i].key;
     edit({
       stamps: stamps.map((s, j) => (j === i ? { ...s, key } : s)),
-      personality: selected === old ? key : selected, // keep selection on the renamed stamp
+      atmosphere: selected === old ? key : selected, // keep selection on the renamed stamp
     });
   };
   const recolorStamp = (i: number) => {
-    const cur = STAMP_PALETTE.indexOf(stamps[i].color);
-    const color = STAMP_PALETTE[(cur + 1) % STAMP_PALETTE.length];
+    const cur = ATMOSPHERE_STAMP_PALETTE.indexOf(stamps[i].color);
+    const color = ATMOSPHERE_STAMP_PALETTE[(cur + 1) % ATMOSPHERE_STAMP_PALETTE.length];
     editCommit({ stamps: stamps.map((s, j) => (j === i ? { ...s, color } : s)) });
   };
   const addStamp = () => {
-    const fresh: Stamp = { key: 'NEW', color: STAMP_PALETTE[stamps.length % STAMP_PALETTE.length], hint: '' };
+    const fresh: AtmosphereStamp = { key: 'NEW', color: ATMOSPHERE_STAMP_PALETTE[stamps.length % ATMOSPHERE_STAMP_PALETTE.length], hint: '' };
     editCommit({ stamps: [...stamps, fresh] });
   };
   const removeStamp = (i: number) => {
     const removed = stamps[i].key;
     const next = stamps.filter((_, j) => j !== i);
-    editCommit({ stamps: next, personality: selected === removed ? (next[0]?.key ?? '') : selected });
+    editCommit({ stamps: next, atmosphere: selected === removed ? (next[0]?.key ?? '') : selected });
   };
 
   return (
@@ -439,7 +430,7 @@ function PersonalitySection({
               key={i}
               type="button"
               title={s.hint}
-              onClick={() => editCommit({ personality: s.key })}
+              onClick={() => editCommit({ atmosphere: s.key })}
               className="sp-stamp"
               style={active ? { background: s.color, borderColor: s.color, color: '#fff' } : { borderColor: s.color, color: s.color }}
             >

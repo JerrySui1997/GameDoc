@@ -36,12 +36,17 @@ export const WIDGET_TYPES = [
   'refs',
   'collection',
   'studioPanel',
+  'environmentStudio',
   'characterCard',
   'narrativeTimeline',
   'hero',
   'cards',
   'swatch',
   'hexelMap',
+<<<<<<< HEAD
+=======
+  'imageBoard',
+>>>>>>> 76bff3943e699ef52a571a3570c25714b3db95b8
   'childPages',
 ] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];

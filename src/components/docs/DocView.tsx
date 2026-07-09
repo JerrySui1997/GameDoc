@@ -48,12 +48,20 @@ export function DocView({ docId, initialBody }: { docId: string; initialBody: st
     return () => clearTimeout(t);
   }, [live]);
   // Whether the body already has an inline childPages widget, so the fallback
+<<<<<<< HEAD
   // list below isn't a duplicate of it. Seeded from the same static snapshot
   // StaticDocBody paints from (`initialBody`, since the provider's `doc.body`
   // is body-less until background hydration lands) so there's no flash, then
   // kept live thereafter by the editor's own reactive block state, which sees
   // same-session edits that snapshot does not (it only reflects first paint).
   const [inlineChildPages, setInlineChildPages] = useState(() => bodyHasChildPages(initialBody ?? doc?.body ?? ''));
+=======
+  // list below isn't a duplicate of it. Seeded from the static `body` (matching
+  // what StaticDocBody paints, so there's no flash) and kept live thereafter by
+  // the editor's own reactive block state, which sees same-session edits that
+  // `doc.body` here does not (it only refreshes on reload/remote commits).
+  const [inlineChildPages, setInlineChildPages] = useState(() => (doc ? bodyHasChildPages(doc.body) : false));
+>>>>>>> 76bff3943e699ef52a571a3570c25714b3db95b8
 
   if (!doc) {
     return (

@@ -4,9 +4,14 @@ import type { WidgetBlock, WidgetType } from '@/lib/docs/blocks';
 import type { WidgetEntry } from './types';
 import { Labeled, StatusBadge, Badges, Tags, Refs, Collection } from './SmallWidgets';
 import { StudioPanel } from './StudioPanel';
+import { EnvironmentPanel } from './EnvironmentPanel';
 import { CharacterCard } from './CharacterCard';
 import { NarrativeTimeline } from './NarrativeTimeline';
 import { HexelMap } from './HexelMap';
+<<<<<<< HEAD
+=======
+import { ImageBoard } from './ImageBoard';
+>>>>>>> 76bff3943e699ef52a571a3570c25714b3db95b8
 import { Hero, Cards, Swatches, ChildPages } from './RichWidgets';
 
 // The single registry of insertable widgets — replaces the old WIDGET_DEFS +
@@ -63,6 +68,13 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { dataJson: '' },
     Component: StudioPanel,
   },
+  environmentStudio: {
+    type: 'environmentStudio',
+    title: 'Environment Studio',
+    aliases: ['environment', 'location', 'sheet', 'panel', 'designer', 'place', 'area', 'level'],
+    defaults: { dataJson: '' },
+    Component: EnvironmentPanel,
+  },
   characterCard: {
     type: 'characterCard',
     title: 'Character Card',
@@ -105,6 +117,16 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { label: 'Palette', swatchesJson: '[]', overridesJson: '{}' },
     Component: Swatches,
   },
+<<<<<<< HEAD
+=======
+  imageBoard: {
+    type: 'imageBoard',
+    title: 'Image Board',
+    aliases: ['board', 'reference', 'gallery', 'images', 'moodboard', 'refs'],
+    defaults: { boardId: '' },
+    Component: ImageBoard,
+  },
+>>>>>>> 76bff3943e699ef52a571a3570c25714b3db95b8
   childPages: {
     type: 'childPages',
     title: 'Child pages',
@@ -126,9 +148,14 @@ export const WIDGET_LIST: WidgetEntry[] = [
   WIDGETS.refs,
   WIDGETS.collection,
   WIDGETS.studioPanel,
+  WIDGETS.environmentStudio,
   WIDGETS.characterCard,
   WIDGETS.narrativeTimeline,
   WIDGETS.hexelMap,
+<<<<<<< HEAD
+=======
+  WIDGETS.imageBoard,
+>>>>>>> 76bff3943e699ef52a571a3570c25714b3db95b8
   WIDGETS.childPages,
 ];
 

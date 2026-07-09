@@ -9,6 +9,7 @@ import { DocsTree } from '@/components/docs/DocsTree';
 // specialized pages; Nightmare is the legacy hardcoded tool.
 const UTILITY_LINKS = [
   { href: '/collections', label: 'Collections' },
+  { href: '/boards', label: 'Reference Boards' },
   { href: '/nightmare', label: 'Nightmare (legacy)' },
 ];
 
