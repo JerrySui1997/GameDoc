@@ -55,13 +55,30 @@ export function DocView({
   // DocView (see docs/[id]/page.tsx).
   const [live, setLive] = useState(false);
   const handleLive = useCallback(() => setLive(true), []);
-  // Safety net: reveal the editor even if collab never signals ready (relay slow
-  // or unreachable), so the page is never stuck showing only the read-only paint.
-  // In the normal case onLive fires well under a second and this never matters.
+  // A page with real saved content must never be force-swapped to an empty
+  // live editor — the Yjs room is only ever seeded by the collab relay (see
+  // useYDoc.ts), so if the relay is slow/unreachable the room really is empty,
+  // not just "not synced yet". Blindly revealing it would replace good static
+  // content with a blank page (exactly the "jumps to an empty page" bug).
+  const hasStaticContent = Boolean((initialBody ?? doc?.body ?? '').trim());
+  const [syncStalled, setSyncStalled] = useState(false);
+  // Safety net: for a genuinely new/empty page there's nothing to lose, so
+  // reveal the editor even if collab never signals ready (relay slow or
+  // unreachable) rather than being stuck on an equally-empty read-only paint.
+  // Pages with existing content instead wait indefinitely for a real `onLive`
+  // signal, surfacing a non-destructive "still connecting" notice after a
+  // longer grace period so the static content never silently disappears.
   useEffect(() => {
     if (live) return;
-    const t = setTimeout(() => setLive(true), 5000);
+    if (!hasStaticContent) {
+      const t = setTimeout(() => setLive(true), 5000);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => setSyncStalled(true), 8000);
     return () => clearTimeout(t);
+  }, [live, hasStaticContent]);
+  useEffect(() => {
+    if (live) setSyncStalled(false);
   }, [live]);
   // Whether the body already has an inline childPages widget, so the fallback
   // list below isn't a duplicate of it. Seeded from the static `body` (matching
@@ -168,6 +185,17 @@ export function DocView({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {!live && syncStalled && (
+        <div
+          className="rounded-lg border border-line bg-canvas/60 px-3 py-2 text-xs font-medium text-muted"
+          role="status"
+          aria-live="polite"
+        >
+          Live editing is taking longer than usual to connect — showing the last saved version below. It'll switch
+          over automatically once it reconnects.
         </div>
       )}
 
