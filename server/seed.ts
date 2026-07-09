@@ -9,7 +9,7 @@ import path from 'path';
 import { DATA_DIR, dataFile } from '@/lib/store/paths';
 
 const SEED_DIR = path.join(process.cwd(), 'src', 'data');
-const COLLECTIONS = ['docs', 'collections', 'templates'] as const;
+const COLLECTIONS = ['docs', 'collections', 'templates', 'boards'] as const;
 
 export async function ensureSeed(): Promise<void> {
   // In dev the data already lives at the seed path — nothing to copy.
