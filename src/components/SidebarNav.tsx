@@ -9,10 +9,11 @@ import { DocsTree } from '@/components/docs/DocsTree';
 // specialized pages; Nightmare is the legacy hardcoded tool.
 const UTILITY_LINKS = [
   { href: '/collections', label: 'Collections' },
+  { href: '/boards', label: 'Reference Boards' },
   { href: '/nightmare', label: 'Nightmare (legacy)' },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ showLogout = false }: { showLogout?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -46,6 +47,17 @@ export function SidebarNav() {
               );
             })}
           </nav>
+
+          {showLogout && (
+            <form action="/api/logout" method="post" className="mt-4 border-t border-line-soft pt-3">
+              <button
+                type="submit"
+                className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-muted transition-colors hover:bg-canvas hover:text-oxblood"
+              >
+                Log out
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </aside>

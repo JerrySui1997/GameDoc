@@ -4,10 +4,12 @@ import type { WidgetBlock, WidgetType } from '@/lib/docs/blocks';
 import type { WidgetEntry } from './types';
 import { Labeled, StatusBadge, Badges, Tags, Refs, Collection } from './SmallWidgets';
 import { StudioPanel } from './StudioPanel';
+import { EnvironmentPanel } from './EnvironmentPanel';
 import { CharacterCard } from './CharacterCard';
 import { NarrativeTimeline } from './NarrativeTimeline';
 import { HexelMap } from './HexelMap';
-import { Hero, Cards, Swatches } from './RichWidgets';
+import { ImageBoard } from './ImageBoard';
+import { Hero, Cards, Swatches, ChildPages } from './RichWidgets';
 
 // The single registry of insertable widgets — replaces the old WIDGET_DEFS +
 // createReactBlockSpec schema. Each entry knows how to label, insert (defaults),
@@ -63,6 +65,13 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { dataJson: '' },
     Component: StudioPanel,
   },
+  environmentStudio: {
+    type: 'environmentStudio',
+    title: 'Environment Studio',
+    aliases: ['environment', 'location', 'sheet', 'panel', 'designer', 'place', 'area', 'level'],
+    defaults: { dataJson: '' },
+    Component: EnvironmentPanel,
+  },
   characterCard: {
     type: 'characterCard',
     title: 'Character Card',
@@ -105,6 +114,20 @@ export const WIDGETS: Record<WidgetType, WidgetEntry> = {
     defaults: { label: 'Palette', swatchesJson: '[]', overridesJson: '{}' },
     Component: Swatches,
   },
+  imageBoard: {
+    type: 'imageBoard',
+    title: 'Image Board',
+    aliases: ['board', 'reference', 'gallery', 'images', 'moodboard', 'refs'],
+    defaults: { boardId: '' },
+    Component: ImageBoard,
+  },
+  childPages: {
+    type: 'childPages',
+    title: 'Child pages',
+    aliases: ['children', 'subpages', 'chapters', 'toc', 'index', 'hub'],
+    defaults: { label: 'Child pages', columns: 3, titlesJson: '{}' },
+    Component: ChildPages,
+  },
 };
 
 /** Shelf / slash-menu order (matches the previous WIDGET_DEFS ordering). */
@@ -119,9 +142,12 @@ export const WIDGET_LIST: WidgetEntry[] = [
   WIDGETS.refs,
   WIDGETS.collection,
   WIDGETS.studioPanel,
+  WIDGETS.environmentStudio,
   WIDGETS.characterCard,
   WIDGETS.narrativeTimeline,
   WIDGETS.hexelMap,
+  WIDGETS.imageBoard,
+  WIDGETS.childPages,
 ];
 
 /** A fresh widget block of the given type, seeded with its default props. */
@@ -130,15 +156,25 @@ export function makeWidgetBlock(type: WidgetType, id: string): WidgetBlock {
 }
 
 /** Render a widget block. The host is `contentEditable={false}` so the widget's
- *  own React UI owns all interaction. Missing props fall back to defaults. */
-export function WidgetHost({ block, onChange }: { block: WidgetBlock; onChange: (patch: Record<string, unknown>) => void }) {
+ *  own React UI owns all interaction. Missing props fall back to defaults.
+ *  `docId` is the page the block lives on — most widgets ignore it; childPages
+ *  uses it to find its own children. */
+export function WidgetHost({
+  block,
+  onChange,
+  docId,
+}: {
+  block: WidgetBlock;
+  onChange: (patch: Record<string, unknown>) => void;
+  docId?: string;
+}) {
   const entry = WIDGETS[block.type];
   if (!entry) return null;
   const Component = entry.Component;
   const props = { ...entry.defaults, ...block.props };
   return (
     <div contentEditable={false}>
-      <Component props={props} onChange={onChange} />
+      <Component props={props} onChange={onChange} docId={docId} />
     </div>
   );
 }

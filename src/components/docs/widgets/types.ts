@@ -8,6 +8,10 @@ import type { WidgetType } from '@/lib/docs/blocks';
 export type WidgetProps = {
   props: Record<string, unknown>;
   onChange: (patch: Record<string, unknown>) => void;
+  /** The id of the page this widget instance lives on. Only set for widgets that
+   *  need to know their own page (e.g. childPages, mirroring its own children) —
+   *  most widgets don't use it. */
+  docId?: string;
 };
 
 /** Registry entry: how to label, insert, and render a widget. */

@@ -11,14 +11,14 @@ import type { CollectionCandidate } from '@/lib/collections/detect';
 // tiny inline name input (not the full CollectionCreator form); naming it
 // persists the collection, after which the tag disappears (the block is now
 // captured). Positioning queries the block's `data-id` element rendered by
-// BlockNote 0.51 inside the editor wrapper.
+// the homegrown PageEditor's block wrapper.
 
 export function CollectionTagOverlay({
   wrapRef,
   candidates,
   docId,
 }: {
-  /** The `relative` wrapper that contains the BlockNote editor DOM. */
+  /** The `relative` wrapper that contains the PageEditor block DOM. */
   wrapRef: RefObject<HTMLDivElement | null>;
   candidates: CollectionCandidate[];
   docId: string;

@@ -16,6 +16,7 @@ import * as Y from 'yjs';
 import {
   emptyProse,
   flattenToFlatBlocks,
+  isChildPagesWidget,
   isListType,
   isWidgetBlock,
   listRangeToMarkdown,
@@ -55,7 +56,8 @@ import {
   type PageLegend,
 } from '@/lib/docs/legend';
 import { detectCandidates, type CollectionCandidate } from '@/lib/collections/detect';
-import { findMentionQuery, splitMentions, type MentionSegment } from '@/lib/docs/mentions';
+import { findMentionQuery } from '@/lib/docs/mentions';
+import { splitInline, toggleInlineMark, type InlineSegment, type InlineMark } from '@/lib/docs/inlineFormat';
 import { buildMentionIndex, type MentionTarget } from '@/lib/docs/mentionTarget';
 import { CollectionTagOverlay } from '@/components/collections/CollectionTagOverlay';
 import { useDocs } from './DocsProvider';
@@ -65,7 +67,21 @@ import { PROSE_CATALOG, WIDGET_CATALOG } from './catalog';
 import type { Awareness } from './useYDoc';
 import type { Identity } from './identity';
 import { RemoteBlockBadges, RemoteBlockAccent, userField, type RemoteUser } from './Presence';
-import { MentionChip, MentionPanel, inlineMentionClass } from './Mentions';
+import { MentionChip, MentionPanel, MentionMenu, mentionRank, inlineMentionClass, inlineMarkClass } from './Mentions';
+import {
+  PROSE_CLASS,
+  WIDTH_CLASS,
+  ALIGN_SELF,
+  computeOrdinals,
+  computeListInfo,
+  blockSpacing,
+  Divider,
+  QuoteFrame,
+  BeatFrame,
+  MarkerColumn,
+  ColorFrame,
+  markSpanClass,
+} from './blockChrome';
 import type { ReactNode } from 'react';
 
 // ── The page editor ──────────────────────────────────────────────────────────
@@ -112,37 +128,11 @@ const PROSE_MENU: { type: ProseType; title: string; terms: string[] }[] = [
   { type: 'quote', title: 'Quote', terms: ['quote', 'blockquote', 'callout'] },
   { type: 'code', title: 'Code', terms: ['code', 'pre', 'mono'] },
   { type: 'divider', title: 'Divider', terms: ['divider', 'hr', 'rule', 'separator', 'line'] },
+  { type: 'beat', title: 'Beat', terms: ['beat', 'moment', 'sequence', 'number', 'marker', 'segment', 'event'] },
 ];
 
 type SlashItem = { key: string; title: string; subtitle: string; blurb: string; icon: ReactNode; preview: ReactNode; run: () => void };
 
-const PROSE_CLASS: Record<ProseType, string> = {
-  paragraph: 'text-[15px] leading-relaxed text-ink',
-  heading1: 'text-3xl font-bold tracking-tight text-ink',
-  heading2: 'text-2xl font-bold tracking-tight text-ink',
-  heading3: 'text-xl font-semibold text-ink',
-  bullet: 'text-[15px] leading-relaxed text-ink',
-  numbered: 'text-[15px] leading-relaxed text-ink',
-  quote: 'text-lg leading-relaxed font-medium italic text-muted',
-  code: 'font-mono text-sm leading-relaxed text-ink bg-canvas rounded-md px-3 py-2',
-  divider: '',
-};
-
-// Literal Tailwind width classes per layout fraction (Tailwind v4 only emits
-// classes it sees in source, so these must be literal — never `w-[${x}]`). Each
-// fraction subtracts the row gap (0.75rem) so any combination of widths fits one
-// flex-wrap row beside its neighbours; below `sm` everything stacks full-width.
-const WIDTH_CLASS: Record<BlockWidth, string> = {
-  full: 'w-full',
-  twothirds: 'w-full sm:w-[calc(66.667%-0.75rem)]',
-  half: 'w-full sm:w-[calc(50%-0.75rem)]',
-  third: 'w-full sm:w-[calc(33.333%-0.75rem)]',
-};
-const ALIGN_SELF: Record<BlockAlign, string> = {
-  top: 'self-start',
-  center: 'self-center',
-  bottom: 'self-end',
-};
 const WIDTH_GLYPH: Record<BlockWidth, string> = { full: 'Full', twothirds: '⅔', half: '½', third: '⅓' };
 const ALIGN_GLYPH: Record<BlockAlign, string> = { top: '⤒', center: '≡', bottom: '⤓' };
 
@@ -196,6 +186,7 @@ export function PageEditor({
   docId,
   awareness,
   identity,
+  onChildPagesWidgetChange,
 }: {
   /** The page's live Yjs document (already connected via useYDoc). */
   doc: Y.Doc;
@@ -205,6 +196,10 @@ export function PageEditor({
   awareness?: Awareness | null;
   /** This client's display identity, published to teammates' presence. */
   identity?: Identity | null;
+  /** Fires whenever the live body's inline childPages-widget membership changes,
+   *  so the page shell can suppress its own fallback bottom child-page list
+   *  without waiting for a reload. */
+  onChildPagesWidgetChange?: (has: boolean) => void;
 }) {
   // Blocks are *derived* from Y — the single source of truth. Any local or remote
   // change to the order array or to a block's type/text/props re-runs this sync.
@@ -243,6 +238,15 @@ export function PageEditor({
   // a reliable "seed has arrived" signal — and gating edits on it means the
   // client can never create content into an un-seeded doc and block the seed.
   const ready = blocks.length > 0;
+
+  // Tell the page shell live whether the body already carries an inline
+  // childPages widget, so it can hide its own fallback bottom list the moment
+  // one is inserted (or show it again the moment the last one is removed) —
+  // without that shell needing to re-derive it from a stale `doc.body` snapshot.
+  const hasChildPagesWidget = useMemo(() => blocks.some(isChildPagesWidget), [blocks]);
+  useEffect(() => {
+    onChildPagesWidgetChange?.(hasChildPagesWidget);
+  }, [hasChildPagesWidget, onChildPagesWidgetChange]);
 
   const [slash, setSlash] = useState<{ id: string; index: number } | null>(null);
 
@@ -406,38 +410,8 @@ export function PageEditor({
     [blocks, docId],
   );
 
-  // Numbered-list ordinals (reset on any non-numbered block).
-  const ordinals = useMemo(() => {
-    const map = new Map<string, number>();
-    let run = 0;
-    for (const b of displayBlocks) {
-      if (!isWidgetBlock(b) && b.type === 'numbered') {
-        run += 1;
-        map.set(b.id, run);
-      } else {
-        run = 0;
-      }
-    }
-    return map;
-  }, [displayBlocks]);
-
-  // List-run membership: for each block in a contiguous run of list items (bullet
-  // or numbered, mixed runs allowed), whether it is the first / last of its run.
-  // Drives tight inter-item spacing so a run reads as one list. A lone list item
-  // is a run of length 1 (first && last).
-  const listInfo = useMemo(() => {
-    const map = new Map<string, { first: boolean; last: boolean }>();
-    for (let i = 0; i < displayBlocks.length; i++) {
-      const b = displayBlocks[i];
-      if (isWidgetBlock(b) || !isListType(b.type)) continue;
-      const prev = displayBlocks[i - 1];
-      const next = displayBlocks[i + 1];
-      const first = !prev || isWidgetBlock(prev) || !isListType(prev.type);
-      const last = !next || isWidgetBlock(next) || !isListType(next.type);
-      map.set(b.id, { first, last });
-    }
-    return map;
-  }, [displayBlocks]);
+  const ordinals = useMemo(() => computeOrdinals(displayBlocks), [displayBlocks]);
+  const listInfo = useMemo(() => computeListInfo(displayBlocks), [displayBlocks]);
 
   // The set of block ids covered by the current whole-block selection, resolved
   // against render order. Empty when there's no selection or its endpoints have
@@ -507,6 +481,28 @@ export function PageEditor({
     focusReq.current = { id: blockId, caret: before.length + token.length };
     setMention(null);
     ySetBlockText(doc, blockId, newText);
+  }
+
+  /** Apply the selection toolbar / Ctrl+B/I/K action to a block's text
+   *  directly (bypassing `onTextChange`'s own mention-query detection, which
+   *  would run against a stale DOM caret since this isn't a live keystroke —
+   *  same reasoning as `pickMention` above). No-ops without a real range. */
+  function formatSelection(block: ProseBlock, start: number, end: number, action: InlineMark | 'link') {
+    if (start === end) return;
+    if (action === 'link') {
+      const before = block.text.slice(0, start);
+      const after = block.text.slice(end);
+      focusReq.current = { id: block.id, caret: before.length + 1 };
+      setSlash(null);
+      setMention({ id: block.id, start: before.length, query: '', index: 0 });
+      ySetBlockText(doc, block.id, before + '@' + after);
+      return;
+    }
+    const result = toggleInlineMark(block.text, start, end, action);
+    focusReq.current = { id: block.id, caret: result.caret };
+    setSlash(null);
+    setMention(null);
+    ySetBlockText(doc, block.id, result.text);
   }
 
   // ── Trailer materialization ──
@@ -819,6 +815,22 @@ export function PageEditor({
       if (!mod) setSelection(null);
     }
 
+    // Selection formatting: Ctrl/Cmd+B/I toggle bold/italic on the current
+    // text selection; Ctrl/Cmd+K opens the mention picker there (mirrors the
+    // SelectionToolbar's buttons — see ProseView). No-ops without a real
+    // (non-collapsed) selection; code blocks opt out (their content is code,
+    // not styled prose).
+    if ((e.metaKey || e.ctrlKey) && block.type !== 'code' && caret !== selEnd) {
+      const key = e.key.toLowerCase();
+      const action: InlineMark | 'link' | null =
+        key === 'b' ? 'bold' : key === 'i' ? 'italic' : key === 'k' ? 'link' : null;
+      if (action) {
+        e.preventDefault();
+        formatSelection(block, caret, selEnd, action);
+        return;
+      }
+    }
+
     // The synthetic trailer: Enter drops a fresh paragraph; Backspace/Up jump to
     // the previous real block. Typing is handled by onTextChange (materialize).
     if (block.id === TRAILER_ID) {
@@ -1023,11 +1035,11 @@ export function PageEditor({
             // List items sit tight (no internal vertical padding); the run keeps
             // normal padding only at its outer (first/last) edges.
             const li = listInfo.get(block.id);
-            const spacing = li ? `${li.first ? 'pt-0.5' : 'pt-0'} ${li.last ? 'pb-0.5' : 'pb-0'}` : 'py-0.5';
+            const spacing = blockSpacing(li);
             const selected = selectedIds.size >= 2 && selectedIds.has(block.id);
-            // Prose blocks (not dividers) can be tagged with a legend colour; the
-            // resolved entry (if its id still exists in the legend) tints them.
-            const canColor = !isWidgetBlock(block) && block.type !== 'divider';
+            // Prose blocks (not dividers/beats) can be tagged with a legend colour;
+            // the resolved entry (if its id still exists in the legend) tints them.
+            const canColor = !isWidgetBlock(block) && block.type !== 'divider' && block.type !== 'beat';
             const colorId = !isTrailer && !isWidgetBlock(block) ? block.color : undefined;
             const tag = colorId ? legendById.get(colorId) : undefined;
             return (
@@ -1076,7 +1088,7 @@ export function PageEditor({
                   </>
                 ) : null}
                 {isWidgetBlock(block) ? (
-                  <WidgetHost block={block} onChange={(patch) => setWidgetProps(block.id, patch)} />
+                  <WidgetHost block={block} onChange={(patch) => setWidgetProps(block.id, patch)} docId={docId} />
                 ) : (
                   <ColorFrame color={tag?.color}>
                     <ProseView
@@ -1088,6 +1100,7 @@ export function PageEditor({
                       onPaste={handlePaste}
                       onFocus={() => { lastFocusedId.current = block.id; setActiveId(isTrailer ? null : block.id); }}
                       onCursor={publishCursor}
+                      onFormat={formatSelection}
                       mentionIndex={mentionTargets}
                       onOpenMention={setOpenMentionId}
                     />
@@ -1168,6 +1181,7 @@ function ProseView({
   onPaste,
   onFocus,
   onCursor,
+  onFormat,
   mentionIndex,
   onOpenMention,
 }: {
@@ -1179,6 +1193,8 @@ function ProseView({
   onPaste: (e: ClipboardEvent<HTMLTextAreaElement>, block: ProseBlock) => void;
   onFocus: () => void;
   onCursor: (blockId: string, start: number, end: number) => void;
+  /** Apply a format-toolbar / Ctrl+B/I/K action to a text range in this block. */
+  onFormat: (block: ProseBlock, start: number, end: number, action: InlineMark | 'link') => void;
   /** Resolved mention targets, for coloring + previewing chips. */
   mentionIndex: Map<string, MentionTarget>;
   /** Open the slide-in detail panel for a mentioned page. */
@@ -1197,6 +1213,11 @@ function ProseView({
   // re-place the caret when a remote edit rewrites this block's text underneath
   // us, so a teammate typing earlier in the paragraph doesn't shove your cursor.
   const selRef = useRef<{ value: string; start: number; end: number }>({ value: block.text, start: 0, end: 0 });
+  // A real (non-collapsed) text selection in this block — drives the floating
+  // SelectionToolbar. Separate from `selRef` above: that's a ref (no re-render)
+  // used only to reconcile the caret after a remote edit, while this is state
+  // so the toolbar can actually appear/move/disappear as the selection changes.
+  const [sel, setSel] = useState<{ start: number; end: number } | null>(null);
 
   const setRef = useCallback(
     (el: HTMLTextAreaElement | null) => {
@@ -1211,6 +1232,7 @@ function ProseView({
     if (el) {
       selRef.current = { value: el.value, start: el.selectionStart, end: el.selectionEnd };
       onCursor(block.id, el.selectionStart, el.selectionEnd);
+      setSel(el.selectionStart !== el.selectionEnd ? { start: el.selectionStart, end: el.selectionEnd } : null);
     }
   }, [block.id, onCursor]);
 
@@ -1218,13 +1240,13 @@ function ProseView({
   useLayoutEffect(() => {
     const el = localRef.current;
     if (!el) return;
-    const sel = selRef.current;
-    if (document.activeElement !== el || sel.value === block.text) {
+    const last = selRef.current;
+    if (document.activeElement !== el || last.value === block.text) {
       selRef.current = { value: block.text, start: el.selectionStart, end: el.selectionEnd };
       return;
     }
-    const start = adjustCaret(sel.value, block.text, sel.start);
-    const end = adjustCaret(sel.value, block.text, sel.end);
+    const start = adjustCaret(last.value, block.text, last.start);
+    const end = adjustCaret(last.value, block.text, last.end);
     el.setSelectionRange(start, end);
     selRef.current = { value: block.text, start, end };
   }, [block.text]);
@@ -1236,7 +1258,7 @@ function ProseView({
   }, [block.text, block.type]);
 
   if (block.type === 'divider') {
-    return <hr className="my-3 border-t border-line" />;
+    return <Divider />;
   }
 
   const marker =
@@ -1252,10 +1274,19 @@ function ProseView({
   //   • focus → a paint-only highlight tinting each raw `@slug` in place; the real
   //             text stays visible so the caret/selection/spellcheck are untouched.
   const typography = PROSE_CLASS[block.type];
-  const segments = splitMentions(block.text);
-  const canChip = block.type !== 'code' && segments.some((s) => s.kind === 'mention');
+  const segments = splitInline(block.text);
+  const canChip = block.type !== 'code' && segments.some((s) => s.kind === 'mention' || s.marks.length > 0);
   const chipMode = canChip && !focused; // titled chips; raw text hidden under them
   const markMode = canChip && focused; // in-place highlight; raw text stays visible
+
+  // Anchor for the floating format toolbar — only while there's a real
+  // selection. Recomputed via a mirror-div measurement (see measureCaret)
+  // whenever the selection changes; a code block never has one (see the
+  // `block.type !== 'code'` gate on the shortcut/toolbar render below).
+  const toolbarAnchor = useMemo(
+    () => (sel && localRef.current ? measureCaret(localRef.current, sel.start) : null),
+    [sel],
+  );
 
   /** Focus the textarea at a raw-text caret index (or its end) — used when the
    *  reader clicks the idle chip overlay between chips to resume editing. */
@@ -1278,8 +1309,8 @@ function ProseView({
         onKeyDown={(e) => onKeyDown(e, block)}
         onPaste={(e) => onPaste(e, block)}
         onFocus={(e) => { setFocused(true); onFocus(); onCursor(block.id, e.currentTarget.selectionStart, e.currentTarget.selectionEnd); }}
-        onBlur={() => setFocused(false)}
-        placeholder={block.type === 'paragraph' ? "Write, or press '/' for blocks…" : undefined}
+        onBlur={() => { setFocused(false); setSel(null); }}
+        placeholder={block.type === 'paragraph' ? "Write, or press '/' for blocks…" : block.type === 'beat' ? 'Label (optional)' : undefined}
         spellCheck
         // While the chip overlay is up (idle), hide the raw text under it
         // (transparent) so the `@slug` token never double-paints behind a chip, and
@@ -1300,21 +1331,28 @@ function ProseView({
           onMeasure={setOverlayHeight}
         />
       )}
+      {sel && toolbarAnchor && block.type !== 'code' && (
+        <SelectionToolbar
+          top={toolbarAnchor.top}
+          left={toolbarAnchor.left}
+          height={toolbarAnchor.height}
+          onMark={(mark) => { setSel(null); onFormat(block, sel.start, sel.end, mark); }}
+          onLink={() => { setSel(null); onFormat(block, sel.start, sel.end, 'link'); }}
+        />
+      )}
     </div>
   );
 
   if (block.type === 'quote') {
-    return <div className="my-1 rounded-r-lg border-l-4 border-brass bg-canvas py-2 pl-4 pr-3">{field}</div>;
+    return <QuoteFrame>{field}</QuoteFrame>;
+  }
+  if (block.type === 'beat') {
+    return <BeatFrame ordinal={ordinal ?? 1}>{field}</BeatFrame>;
   }
   if (marker) {
     // Fixed-width, right-aligned, tabular marker column so `1.`–`99.` and `•` all
     // share one text left-edge and consecutive items line up.
-    return (
-      <div className="flex gap-2">
-        <span className="w-6 flex-shrink-0 select-none pt-0.5 text-right text-[15px] leading-relaxed tabular-nums text-brass">{marker}</span>
-        <div className="min-w-0 flex-1">{field}</div>
-      </div>
-    );
+    return <MarkerColumn marker={marker}>{field}</MarkerColumn>;
   }
   return field;
 }
@@ -1332,7 +1370,7 @@ function ProseView({
 //     metric identical so a mention stays a colored token while you type in it.
 function MentionReadLayer({ mode, segments, typography, mentionIndex, onOpenMention, onEditAt, onMeasure }: {
   mode: 'chips' | 'mark';
-  segments: MentionSegment[];
+  segments: InlineSegment[];
   typography: string;
   mentionIndex: Map<string, MentionTarget>;
   onOpenMention: (id: string) => void;
@@ -1361,10 +1399,12 @@ function MentionReadLayer({ mode, segments, typography, mentionIndex, onOpenMent
         className={`pointer-events-none absolute left-0 right-0 top-0 whitespace-pre-wrap break-words text-transparent ${typography}`}
       >
         {segments.map((seg, i) =>
-          seg.kind === 'text' ? (
-            <span key={i}>{seg.text}</span>
-          ) : (
+          seg.kind === 'mention' ? (
             <span key={i} className={inlineMentionClass(mentionIndex.get(seg.id) ?? null)}>{seg.raw}</span>
+          ) : seg.marks.length ? (
+            <span key={i} className={inlineMarkClass(seg.marks)}>{seg.raw}</span>
+          ) : (
+            <span key={i}>{seg.text}</span>
           ),
         )}
       </div>
@@ -1381,9 +1421,7 @@ function MentionReadLayer({ mode, segments, typography, mentionIndex, onOpenMent
       }}
     >
       {segments.map((seg, i) =>
-        seg.kind === 'text' ? (
-          <span key={i} data-seg-start={seg.start}>{seg.text}</span>
-        ) : (
+        seg.kind === 'mention' ? (
           <MentionChip
             key={i}
             id={seg.id}
@@ -1391,10 +1429,138 @@ function MentionReadLayer({ mode, segments, typography, mentionIndex, onOpenMent
             target={mentionIndex.get(seg.id) ?? null}
             onOpen={onOpenMention}
           />
+        ) : (
+          <span key={i} data-seg-start={seg.start} className={markSpanClass(seg.marks)}>{seg.text}</span>
         ),
       )}
     </div>
   );
+}
+
+// ── Selection format toolbar ─────────────────────────────────────────────────
+// A small floating Bold/Italic/Code/Link toolbar that appears over a real text
+// selection (see ProseView's `sel` state + `toolbarAnchor`). Positioned via
+// `measureCaret` at the selection's start, then self-corrects against the real
+// viewport once mounted — simpler than trying to reason about the field
+// wrapper's own bounds ahead of time, and correct at any scroll position or
+// column width.
+
+function SelectionToolbar({ top, left, height, onMark, onLink }: {
+  top: number;
+  left: number;
+  height: number;
+  onMark: (mark: InlineMark) => void;
+  onLink: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ x: 0, below: false });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    let x = 0;
+    if (rect.right > window.innerWidth - 8) x = window.innerWidth - 8 - rect.right;
+    if (rect.left + x < 8) x = 8 - rect.left;
+    const below = rect.top < 8;
+    setPos((prev) => (prev.x === x && prev.below === below ? prev : { x, below }));
+  }, [top, left]);
+
+  return (
+    <div
+      ref={ref}
+      className={`absolute z-20 flex items-center gap-0.5 rounded-lg border border-line bg-surface p-1 shadow-lg ${
+        pos.below ? '' : '-translate-y-[calc(100%+8px)]'
+      }`}
+      style={{ top: pos.below ? top + height + 8 : top, left: left + pos.x }}
+    >
+      <ToolbarBtn label="B" title="Bold (Ctrl+B)" onClick={() => onMark('bold')} className="font-bold" />
+      <ToolbarBtn label="I" title="Italic (Ctrl+I)" onClick={() => onMark('italic')} className="italic" />
+      <ToolbarBtn label="</>" title="Code" onClick={() => onMark('code')} className="font-mono text-[10px]" />
+      <span className="mx-0.5 h-4 w-px bg-line" />
+      <ToolbarBtn label="@" title="Link a page (Ctrl+K)" onClick={onLink} className="font-semibold text-teal" />
+    </div>
+  );
+}
+
+/** One toolbar button — fires on mousedown (not click) with preventDefault, the
+ *  same convention MentionMenu/SlashMenu use below, so clicking never blurs the
+ *  textarea out from under the selection it's about to act on. */
+function ToolbarBtn({ label, title, onClick, className }: {
+  label: string;
+  title: string;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className={`flex h-7 w-7 items-center justify-center rounded-md text-[13px] text-muted transition-colors hover:bg-canvas hover:text-ink ${className ?? ''}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Measure where a text offset in a textarea would land on screen, in the
+ *  coordinate space of its own offsetParent (the field's `relative` wrapper —
+ *  see ProseView), by mirroring the textarea's text-layout CSS onto an
+ *  offscreen clone, inserting a marker at `offset`, and reading the marker's
+ *  position relative to the clone itself. Synchronous: appends, measures, and
+ *  removes the mirror in one call — it's never left mounted. */
+function measureCaret(el: HTMLTextAreaElement, offset: number): { top: number; left: number; height: number } {
+  const cs = window.getComputedStyle(el);
+  const mirror = document.createElement('div');
+  const style = mirror.style;
+  style.position = 'absolute';
+  style.visibility = 'hidden';
+  style.left = '-9999px';
+  style.top = '0';
+  style.boxSizing = 'content-box'; // getComputedStyle().width is always content-box, regardless of the textarea's own box-sizing
+  style.width = cs.width;
+  style.paddingTop = cs.paddingTop;
+  style.paddingRight = cs.paddingRight;
+  style.paddingBottom = cs.paddingBottom;
+  style.paddingLeft = cs.paddingLeft;
+  style.whiteSpace = 'pre-wrap';
+  style.wordBreak = cs.wordBreak;
+  style.overflowWrap = cs.overflowWrap;
+  style.fontFamily = cs.fontFamily;
+  style.fontSize = cs.fontSize;
+  style.fontWeight = cs.fontWeight;
+  style.fontStyle = cs.fontStyle;
+  style.letterSpacing = cs.letterSpacing;
+  style.lineHeight = cs.lineHeight;
+  style.wordSpacing = cs.wordSpacing;
+  style.textTransform = cs.textTransform;
+
+  const zwsp = String.fromCharCode(0x200b); // zero-width marker glyph — invisible, but still occupies a text position for getBoundingClientRect to measure
+  const before = document.createTextNode(el.value.slice(0, offset));
+  const marker = document.createElement('span');
+  marker.textContent = zwsp;
+  const after = document.createTextNode(el.value.slice(offset) || zwsp);
+  mirror.append(before, marker, after);
+  document.body.appendChild(mirror);
+
+  const mirrorRect = mirror.getBoundingClientRect();
+  const markerRect = marker.getBoundingClientRect();
+  document.body.removeChild(mirror);
+
+  // The textarea has no border/padding of its own in this app (`border-none
+  // p-0`), but read them anyway rather than assuming — offsetTop/offsetLeft
+  // measure to the *outside* of the border, while the mirror (built with
+  // padding but no border) measures its marker from the *inside* of its
+  // padding, so the two need reconciling by the border width.
+  const borderLeft = parseFloat(cs.borderLeftWidth) || 0;
+  const borderTop = parseFloat(cs.borderTopWidth) || 0;
+
+  return {
+    top: el.offsetTop + borderTop + (markerRect.top - mirrorRect.top),
+    left: el.offsetLeft + borderLeft + (markerRect.left - mirrorRect.left),
+    height: markerRect.height,
+  };
 }
 
 /** Map a viewport point inside a read overlay to a raw-text caret index via the
@@ -1459,7 +1625,7 @@ function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, on
 }) {
   const [colorOpen, setColorOpen] = useState(false);
   const layout = block.layout ?? DEFAULT_LAYOUT;
-  const canColor = !isWidgetBlock(block) && block.type !== 'divider';
+  const canColor = !isWidgetBlock(block) && block.type !== 'divider' && block.type !== 'beat';
   const colorId = isWidgetBlock(block) ? undefined : block.color;
   const tag = canColor && colorId ? legend.find((e) => e.id === colorId) : undefined;
   const meta = blockMeta(block);
@@ -1539,20 +1705,6 @@ function blockMeta(block: DocBlock): { icon: ReactNode; label: string } {
     return { icon: WIDGET_CATALOG[block.type].icon, label: WIDGET_LIST.find((w) => w.type === block.type)?.title ?? 'Widget' };
   }
   return { icon: PROSE_CATALOG[block.type].icon, label: PROSE_MENU.find((p) => p.type === block.type)?.title ?? 'Block' };
-}
-
-// ── Legend-colour frame (tinted rail around a tagged prose block) ────────────
-// Mirrors the small-widget look (a colored left rail + faint wash) so a tagged
-// paragraph reads as kin to the field widgets. No tag → children pass through.
-function ColorFrame({ color, children }: { color?: LegendColor; children: ReactNode }) {
-  if (!color) return <>{children}</>;
-  const st = LEGEND_STYLE[color];
-  return (
-    <div className={`relative rounded-lg py-1 pl-3.5 pr-2 ${st.tint}`}>
-      <span className={`pointer-events-none absolute inset-y-1 left-0 w-1 rounded-r ${st.bar}`} aria-hidden />
-      {children}
-    </div>
-  );
 }
 
 /** The block-level colour picker: choose one legend entry (or clear the tag). */
@@ -1699,50 +1851,6 @@ function ColorPalette({ current, onPick, onClose }: {
         ))}
       </div>
     </>
-  );
-}
-
-// ── @mention menu ─────────────────────────────────────────────────────────────
-// A compact page picker shown while typing `@query`. Mirrors the slash menu's
-// block-anchored dropdown; each row shows the page title and the slug that will
-// be inserted (so the writer learns the id). Picking inserts `@<id> `.
-
-/** Rank a candidate against the query: prefix match beats a mere substring. */
-function mentionRank(item: { id: string; title: string }, q: string): number {
-  if (!q) return 0;
-  return item.id.toLowerCase().startsWith(q) || item.title.toLowerCase().startsWith(q) ? 2 : 1;
-}
-
-function MentionMenu({
-  items,
-  activeIndex,
-  onHover,
-  onPick,
-}: {
-  items: { id: string; title: string }[];
-  activeIndex: number;
-  onHover: (i: number) => void;
-  onPick: (i: number) => void;
-}) {
-  return (
-    <div className="absolute left-0 top-full z-20 mt-1 max-h-64 w-64 overflow-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
-      <div className="px-2 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-muted">Link a page</div>
-      {items.map((it, i) => (
-        <button
-          key={it.id}
-          type="button"
-          onMouseEnter={() => onHover(i)}
-          onMouseDown={(e) => { e.preventDefault(); onPick(i); }}
-          className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
-            i === activeIndex ? 'bg-canvas text-ink' : 'text-muted'
-          }`}
-        >
-          <span className="flex-shrink-0 font-semibold text-teal">@</span>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.title}</span>
-          <span className="flex-shrink-0 font-mono text-[10px] text-muted">{it.id}</span>
-        </button>
-      ))}
-    </div>
   );
 }
 

@@ -8,11 +8,19 @@ import { WebsocketProvider } from 'y-websocket';
 // room from content.json and persists it back, so the client never seeds — it
 // just renders whatever syncs down. The room name is the doc id.
 
+// The deployed relay. The live store is the single source of truth whenever it
+// is reachable — the repo's content.json is a passive disaster-recovery backup
+// (refresh via `npm run backup-live`), never an automatic fallback.
+const LIVE_COLLAB_URL = 'wss://gamedoc-production.up.railway.app/collab';
+
 // Where the browser reaches the Yjs relay:
-//   1. NEXT_PUBLIC_COLLAB_URL if set (local dev sets ws://localhost:1234).
+//   1. NEXT_PUBLIC_COLLAB_URL if set — a deliberate override, e.g.
+//      ws://localhost:1234 when developing the relay/serialization code itself
+//      against a local `npm run dev:collab`.
 //   2. else same-origin /collab — the production server hosts the relay there,
 //      so this inlined value never needs a per-domain rebuild.
-//   3. else ws://localhost:1234 (dev fallback when the var is unset).
+//   3. else (localhost) the LIVE relay: local browsing edits the live store,
+//      not a local copy.
 function collabUrl(): string {
   const env = process.env.NEXT_PUBLIC_COLLAB_URL;
   if (env) return env;
@@ -21,7 +29,19 @@ function collabUrl(): string {
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
     if (!isLocal) return `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab`;
   }
-  return 'ws://localhost:1234';
+  return LIVE_COLLAB_URL;
+}
+
+// Handshake credentials for a cross-origin relay. A localhost browser can
+// never present the live site's gd_session cookie on the WS upgrade, so the
+// relay's gate (server/collab-core.ts) also accepts the shared agent secret as
+// an ?agent= query param — browsers can't set headers on a WS handshake. Set
+// NEXT_PUBLIC_COLLAB_AGENT_TOKEN (= GAMEDOC_AGENT_TOKEN) in .env.local only:
+// the deployed build must never inline it, or the publicly downloadable
+// bundle would leak the secret.
+function collabParams(): Record<string, string> {
+  const token = process.env.NEXT_PUBLIC_COLLAB_AGENT_TOKEN;
+  return token ? { agent: token } : {};
 }
 
 export type Awareness = WebsocketProvider['awareness'];
@@ -78,7 +98,7 @@ export function useYDoc(roomId: string): Collab | null {
 
   useEffect(() => {
     const doc = acquireDoc(roomId);
-    const provider = new WebsocketProvider(collabUrl(), roomId, doc);
+    const provider = new WebsocketProvider(collabUrl(), roomId, doc, { params: collabParams() });
     const onSync = (isSynced: boolean) => setSynced(isSynced);
     provider.on('sync', onSync);
     setCollab({ doc, provider, awareness: provider.awareness });

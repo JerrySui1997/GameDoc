@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { bodyHasChildPages } from '@/lib/docs/blocks';
 import { useDocs } from './DocsProvider';
 import { InlinePrompt, slugify } from './inline';
 import { RelatedPanel } from './RelatedPanel';
@@ -19,8 +20,27 @@ const LiveEditor = dynamic(
   },
 );
 
-/** The one page editor: prose + structured widget blocks, for every page. */
-export function DocView({ docId }: { docId: string }) {
+/** The one page editor: prose + structured widget blocks, for every page.
+ *  `initialBody` is the server-rendered body snapshot from docs/[id]/page.tsx —
+ *  the provider's docs are body-less until its background hydration lands, so
+ *  the static paint can't rely on `getById(docId).body`. */
+export function DocView({
+  docId,
+  initialBody,
+  basePath = '/docs',
+  rootHref = '/',
+  roomId,
+}: {
+  docId: string;
+  initialBody: string | null;
+  /** Personal spaces (src/app/(personal)/app) pass '/app/docs'. */
+  basePath?: string;
+  /** Where "delete a top-level page" and the parentless case send you.
+   *  Personal spaces pass '/app'. */
+  rootHref?: string;
+  /** Yjs room name, forwarded to LiveEditor; defaults to the bare docId. */
+  roomId?: string;
+}) {
   const { getById, docs, createDoc, deleteDoc, editing } = useDocs();
   const router = useRouter();
   const doc = getById(docId);
@@ -35,14 +55,24 @@ export function DocView({ docId }: { docId: string }) {
   // DocView (see docs/[id]/page.tsx).
   const [live, setLive] = useState(false);
   const handleLive = useCallback(() => setLive(true), []);
-  // Safety net: reveal the editor even if collab never signals ready (relay slow
-  // or unreachable), so the page is never stuck showing only the read-only paint.
-  // In the normal case onLive fires well under a second and this never matters.
+  // Safety net: reveal the editor if collab has real content but onLive somehow
+  // hasn't fired yet. Gated on editorReady so this never swaps a good static
+  // paint for the editor's own empty/loading skeleton (relay slow or
+  // unreachable) — in that case the static paint stays up rather than flashing
+  // to a blank pulse.
+  const [editorReady, setEditorReady] = useState(false);
+  const handleReadyChange = useCallback((ready: boolean) => setEditorReady(ready), []);
   useEffect(() => {
     if (live) return;
-    const t = setTimeout(() => setLive(true), 5000);
+    const t = setTimeout(() => { if (editorReady) setLive(true); }, 5000);
     return () => clearTimeout(t);
-  }, [live]);
+  }, [live, editorReady]);
+  // Whether the body already has an inline childPages widget, so the fallback
+  // list below isn't a duplicate of it. Seeded from the static `body` (matching
+  // what StaticDocBody paints, so there's no flash) and kept live thereafter by
+  // the editor's own reactive block state, which sees same-session edits that
+  // `doc.body` here does not (it only refreshes on reload/remote commits).
+  const [inlineChildPages, setInlineChildPages] = useState(() => (doc ? bodyHasChildPages(doc.body) : false));
 
   if (!doc) {
     return (
@@ -60,7 +90,7 @@ export function DocView({ docId }: { docId: string }) {
     try {
       const created = await createDoc({ id, title: childTitle, parentId: doc!.id, body: '' });
       setAddingChild(false);
-      router.push(`/docs/${created.id}`);
+      router.push(`${basePath}/${created.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add child');
     }
@@ -70,7 +100,7 @@ export function DocView({ docId }: { docId: string }) {
     try {
       const parentId = doc!.parentId;
       await deleteDoc(doc!.id);
-      router.push(parentId ? `/docs/${parentId}` : '/');
+      router.push(parentId ? `${basePath}/${parentId}` : rootHref);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
@@ -150,18 +180,24 @@ export function DocView({ docId }: { docId: string }) {
           until it's ready, then the static copy is dropped. */}
       <div className="grid">
         <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
-          <LiveEditor docId={doc.id} onLive={handleLive} />
+          <LiveEditor
+            docId={doc.id}
+            roomId={roomId}
+            onLive={handleLive}
+            onReadyChange={handleReadyChange}
+            onChildPagesWidgetChange={setInlineChildPages}
+          />
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
-            <StaticDocBody title={doc.title} body={doc.body} />
+            <StaticDocBody docId={doc.id} title={doc.title} body={initialBody ?? doc.body} />
           </div>
         )}
       </div>
 
       <RelatedPanel docId={doc.id} />
 
-      {children.length > 0 && (
+      {!inlineChildPages && children.length > 0 && (
         <section className="pt-6">
           <h2 className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-wide text-muted">Child pages</h2>
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -170,7 +206,7 @@ export function DocView({ docId }: { docId: string }) {
               .map((child) => (
                 <li key={child.id}>
                   <a
-                    href={`/docs/${child.id}`}
+                    href={`${basePath}/${child.id}`}
                     className="block rounded-xl border border-line bg-surface px-4 py-3 text-sm font-medium text-ink hover:border-brass hover:bg-brass-soft"
                   >
                     {child.title}
