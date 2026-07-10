@@ -229,6 +229,25 @@ export function attachCollab(server: Server, opts: { path?: string } = {}): void
       accept();
       return;
     }
+    // Cross-origin clients (a localhost dev browser pointed at the live relay,
+    // scripts, proxies) can never present the same-origin gd_session cookie.
+    // Accept the shared agent secret instead — as an Authorization header
+    // where the client can set one, or as an ?agent= query param since
+    // browsers can't set headers on a WS handshake. Same secret that gates
+    // the mutation REST routes (src/lib/auth/agentToken.ts); no-op when
+    // GAMEDOC_AGENT_TOKEN isn't configured.
+    const agentSecret = process.env.GAMEDOC_AGENT_TOKEN;
+    if (agentSecret) {
+      const [scheme, bearer] = (req.headers.authorization ?? '').split(' ');
+      const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+      if (
+        (scheme === 'Bearer' && safeEqual(bearer, agentSecret)) ||
+        safeEqual(query.get('agent'), agentSecret)
+      ) {
+        accept();
+        return;
+      }
+    }
     void (async () => {
       try {
         const cookies = parseCookies(req.headers.cookie);
