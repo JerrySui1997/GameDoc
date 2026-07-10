@@ -22,7 +22,17 @@ import * as Y from 'yjs';
 import { LeveldbPersistence } from 'y-leveldb';
 import { getToken } from 'next-auth/jwt';
 import { readDocs, writeDocs, type DocsScope } from '@/lib/docs/store';
-import { isYDocEmpty, readTitle, seedYDoc, serializeYDoc } from '@/lib/docs/ydoc';
+import {
+  blocksAreEffectivelyEmpty,
+  isYDocEffectivelyEmpty,
+  isYDocEmpty,
+  readTitle,
+  seedYDoc,
+  serializeYDoc,
+  yReconcileBlocks,
+  ySetTitle,
+} from '@/lib/docs/ydoc';
+import { parseBody } from '@/lib/docs/blocks';
 import { AUTH_COOKIE, authEnabled, parseCookies, safeEqual, sessionToken } from '@/lib/auth/session';
 import { enqueue } from '@/lib/store/json';
 
@@ -111,7 +121,14 @@ function installCollabPersistence(): void {
       Y.applyUpdate(ydoc, Y.encodeStateAsUpdate(persisted), 'load');
 
       // 2. If nothing was persisted, seed from the canonical content.json (or
-      //    per-user equivalent) node.
+      //    per-user equivalent) node. If the room instead holds an
+      //    editor-birthed stub (no widgets, all-empty prose — see
+      //    isYDocEffectivelyEmpty's doc comment) and the store has since
+      //    gained a real, non-empty body for it, reconcile the stub up to
+      //    that body rather than leaving it to shadow the store forever.
+      // Both branches transact under 'seed' origin, so this doesn't trip the
+      // update listener's write-back below (step 3) — no-op by construction
+      // when room and store already agree.
       if (isYDocEmpty(ydoc)) {
         try {
           const { docId, userId } = parseRoom(docName);
@@ -119,6 +136,20 @@ function installCollabPersistence(): void {
           if (node) seedYDoc(ydoc, node.body, node.title);
         } catch (err) {
           console.error(`[collab] seed failed for "${docName}":`, err);
+        }
+      } else if (isYDocEffectivelyEmpty(ydoc)) {
+        try {
+          const { docId, userId } = parseRoom(docName);
+          const node = (await readDocs(storeScope(userId))).find((d) => d.id === docId);
+          const target = node ? parseBody(node.body) : [];
+          if (!blocksAreEffectivelyEmpty(target)) {
+            ydoc.transact(() => {
+              yReconcileBlocks(ydoc, target);
+              if (node?.title) ySetTitle(ydoc, node.title);
+            }, 'seed');
+          }
+        } catch (err) {
+          console.error(`[collab] stub-reconcile failed for "${docName}":`, err);
         }
       }
 
@@ -228,6 +259,25 @@ export function attachCollab(server: Server, opts: { path?: string } = {}): void
     if (!authEnabled()) {
       accept();
       return;
+    }
+    // Cross-origin clients (a localhost dev browser pointed at the live relay,
+    // scripts, proxies) can never present the same-origin gd_session cookie.
+    // Accept the shared agent secret instead — as an Authorization header
+    // where the client can set one, or as an ?agent= query param since
+    // browsers can't set headers on a WS handshake. Same secret that gates
+    // the mutation REST routes (src/lib/auth/agentToken.ts); no-op when
+    // GAMEDOC_AGENT_TOKEN isn't configured.
+    const agentSecret = process.env.GAMEDOC_AGENT_TOKEN;
+    if (agentSecret) {
+      const [scheme, bearer] = (req.headers.authorization ?? '').split(' ');
+      const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
+      if (
+        (scheme === 'Bearer' && safeEqual(bearer, agentSecret)) ||
+        safeEqual(query.get('agent'), agentSecret)
+      ) {
+        accept();
+        return;
+      }
     }
     void (async () => {
       try {

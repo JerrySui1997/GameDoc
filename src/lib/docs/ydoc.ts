@@ -103,6 +103,30 @@ export function isYDocEmpty(doc: Y.Doc): boolean {
 }
 
 /**
+ * Whether a block list has no real content: no widget blocks, and every
+ * prose block's text is empty (or blank). `parseBody` never returns an empty
+ * array — an empty/unparseable body still comes back as `[emptyProse()]` —
+ * so `blocks.length > 0` can't be used to tell "has content" from "genuinely
+ * empty page"; this is the actual test for that.
+ */
+export function blocksAreEffectivelyEmpty(blocks: DocBlock[]): boolean {
+  return blocks.every((b) => !isWidgetType(b.type) && !('text' in b && b.text.trim()));
+}
+
+/**
+ * Whether a Y.Doc looks like an editor-birthed stub rather than real content
+ * (see `blocksAreEffectivelyEmpty`). This is the shape a room ends up in when
+ * a page's room was first opened before its body ever reached the store —
+ * the editor inserts one empty paragraph and persists that to LevelDB,
+ * permanently shadowing a real body written later via REST/curl (which never
+ * touches the room). `isYDocEmpty` alone misses this case since the stub has
+ * a non-empty `order`.
+ */
+export function isYDocEffectivelyEmpty(doc: Y.Doc): boolean {
+  return blocksAreEffectivelyEmpty(readDocBlocks(doc));
+}
+
+/**
  * Seed an *empty* Y.Doc from a stored body string (and optional title). No-op if
  * the doc already has blocks, so it's safe to call on every room load — existing
  * CRDT state always wins over the on-disk snapshot.

@@ -15,8 +15,10 @@
     "db:generate": "drizzle-kit generate",
     "validate": "tsx scripts/validate-nightmares.ts",
     "crossref": "tsx scripts/crossref.ts",
+    "backup-live": "tsx scripts/backup-live.ts",
     "doc-graph": "tsx scripts/doc-graph-report.ts",
-    "hexel-test": "tsx scripts/hexel-selftest.ts"
+    "hexel-test": "tsx scripts/hexel-selftest.ts",
+    "audit-stub-rooms": "tsx scripts/audit-stub-rooms.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",
