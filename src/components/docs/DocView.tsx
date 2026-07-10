@@ -55,14 +55,18 @@ export function DocView({
   // DocView (see docs/[id]/page.tsx).
   const [live, setLive] = useState(false);
   const handleLive = useCallback(() => setLive(true), []);
-  // Safety net: reveal the editor even if collab never signals ready (relay slow
-  // or unreachable), so the page is never stuck showing only the read-only paint.
-  // In the normal case onLive fires well under a second and this never matters.
+  // Safety net: reveal the editor if collab has real content but onLive somehow
+  // hasn't fired yet. Gated on editorReady so this never swaps a good static
+  // paint for the editor's own empty/loading skeleton (relay slow or
+  // unreachable) — in that case the static paint stays up rather than flashing
+  // to a blank pulse.
+  const [editorReady, setEditorReady] = useState(false);
+  const handleReadyChange = useCallback((ready: boolean) => setEditorReady(ready), []);
   useEffect(() => {
     if (live) return;
-    const t = setTimeout(() => setLive(true), 5000);
+    const t = setTimeout(() => { if (editorReady) setLive(true); }, 5000);
     return () => clearTimeout(t);
-  }, [live]);
+  }, [live, editorReady]);
   // Whether the body already has an inline childPages widget, so the fallback
   // list below isn't a duplicate of it. Seeded from the static `body` (matching
   // what StaticDocBody paints, so there's no flash) and kept live thereafter by
@@ -176,11 +180,17 @@ export function DocView({
           until it's ready, then the static copy is dropped. */}
       <div className="grid">
         <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
-          <LiveEditor docId={doc.id} roomId={roomId} onLive={handleLive} onChildPagesWidgetChange={setInlineChildPages} />
+          <LiveEditor
+            docId={doc.id}
+            roomId={roomId}
+            onLive={handleLive}
+            onReadyChange={handleReadyChange}
+            onChildPagesWidgetChange={setInlineChildPages}
+          />
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
-            <StaticDocBody title={doc.title} body={initialBody ?? doc.body} />
+            <StaticDocBody docId={doc.id} title={doc.title} body={initialBody ?? doc.body} />
           </div>
         )}
       </div>
