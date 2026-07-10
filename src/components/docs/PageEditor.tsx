@@ -77,6 +77,20 @@ import {
   inlineMarkClass,
   type ReferenceKind,
 } from './Mentions';
+import {
+  PROSE_CLASS,
+  WIDTH_CLASS,
+  ALIGN_SELF,
+  computeOrdinals,
+  computeListInfo,
+  blockSpacing,
+  Divider,
+  QuoteFrame,
+  BeatFrame,
+  MarkerColumn,
+  ColorFrame,
+  markSpanClass,
+} from './blockChrome';
 import type { ReactNode } from 'react';
 
 // ── The page editor ──────────────────────────────────────────────────────────
