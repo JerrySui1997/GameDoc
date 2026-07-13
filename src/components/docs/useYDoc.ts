@@ -14,17 +14,21 @@ import { WebsocketProvider } from 'y-websocket';
 const LIVE_COLLAB_URL = 'wss://gamedoc-production.up.railway.app/collab';
 
 // Where the browser reaches the Yjs relay:
-//   1. NEXT_PUBLIC_COLLAB_URL if set — a deliberate override, e.g.
-//      ws://localhost:1234 when developing the relay/serialization code itself
-//      against a local `npm run dev:collab`.
-//   2. else same-origin /collab — the production server hosts the relay there,
-//      so this inlined value never needs a per-domain rebuild.
-//   3. else (localhost) the LIVE relay: local browsing edits the live store,
-//      not a local copy.
+//   1. NEXT_PUBLIC_COLLAB_URL if set — a deliberate override, e.g. set
+//      automatically by `npm run dev:lan` when developing the relay/
+//      serialization code itself against a local `npm run dev:collab`.
+//   2. else, in a production build: same-origin /collab — the production
+//      server hosts the relay there, so this inlined value never needs a
+//      per-domain rebuild.
+//   3. else (dev — localhost or a LAN device): the LIVE relay. `next dev`
+//      never merges the collab relay onto the app's port the way production
+//      does, so guessing same-origin here would silently break LAN access;
+//      defaulting to LIVE also means local browsing edits the live store, not
+//      a local copy, matching production's default.
 function collabUrl(): string {
   const env = process.env.NEXT_PUBLIC_COLLAB_URL;
   if (env) return env;
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
     const { protocol, host, hostname } = window.location;
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
     if (!isLocal) return `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab`;
