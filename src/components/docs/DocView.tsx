@@ -62,21 +62,27 @@ export function DocView({
   // content with a blank page (exactly the "jumps to an empty page" bug).
   const hasStaticContent = Boolean((initialBody ?? doc?.body ?? '').trim());
   const [syncStalled, setSyncStalled] = useState(false);
-  // Safety net: for a genuinely new/empty page there's nothing to lose, so
-  // reveal the editor even if collab never signals ready (relay slow or
+  // Safety net: reveal the editor if collab has real content but onLive somehow
+  // hasn't fired yet. Gated on editorReady so this never swaps a good static
+  // paint for the editor's own empty/loading skeleton (relay slow or
+  // unreachable) — in that case the static paint stays up rather than flashing
+  // to a blank pulse. For a genuinely new/empty page there's nothing to lose,
+  // so we reveal the editor even if collab never signals ready (relay slow or
   // unreachable) rather than being stuck on an equally-empty read-only paint.
   // Pages with existing content instead wait indefinitely for a real `onLive`
   // signal, surfacing a non-destructive "still connecting" notice after a
   // longer grace period so the static content never silently disappears.
+  const [editorReady, setEditorReady] = useState(false);
+  const handleReadyChange = useCallback((ready: boolean) => setEditorReady(ready), []);
   useEffect(() => {
     if (live) return;
     if (!hasStaticContent) {
       const t = setTimeout(() => setLive(true), 5000);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setSyncStalled(true), 8000);
+    const t = setTimeout(() => { if (editorReady) setLive(true); }, 5000);
     return () => clearTimeout(t);
-  }, [live, hasStaticContent]);
+  }, [live, hasStaticContent, editorReady]);
   useEffect(() => {
     if (live) setSyncStalled(false);
   }, [live]);
@@ -204,11 +210,17 @@ export function DocView({
           until it's ready, then the static copy is dropped. */}
       <div className="grid">
         <div className={`col-start-1 row-start-1 ${live ? '' : 'invisible'}`}>
-          <LiveEditor docId={doc.id} roomId={roomId} onLive={handleLive} onChildPagesWidgetChange={setInlineChildPages} />
+          <LiveEditor
+            docId={doc.id}
+            roomId={roomId}
+            onLive={handleLive}
+            onReadyChange={handleReadyChange}
+            onChildPagesWidgetChange={setInlineChildPages}
+          />
         </div>
         {!live && (
           <div className="col-start-1 row-start-1">
-            <StaticDocBody title={doc.title} body={initialBody ?? doc.body} />
+            <StaticDocBody docId={doc.id} title={doc.title} body={initialBody ?? doc.body} />
           </div>
         )}
       </div>
