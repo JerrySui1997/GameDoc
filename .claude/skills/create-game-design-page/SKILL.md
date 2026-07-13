@@ -90,6 +90,7 @@ A spec is JSON: `{ id, title, parentId?, order?, blocks: [...] }`.
 | `{ "ul": ["a","b"] }` / `{ "ol": ["a","b"] }` | bullet / numbered list |
 | `{ "bullet": "…" }` / `{ "numbered": "…" }` | single list item |
 | `{ "divider": true }` | horizontal rule |
+| `{ "beat": "…" }` | numbered beat marker (brass circle between rules; numbers auto-count page-wide) |
 | `{ "hero": { "eyebrow","title","subtitle","tone" } }` | **lead banner** |
 | `{ "cards": { "label","columns","items":[{eyebrow,title,body,tone}] } }` | **card grid** |
 | `{ "swatch": { "label","colors":[{hex,name}] } }` | **color palette** |
@@ -97,6 +98,7 @@ A spec is JSON: `{ id, title, parentId?, order?, blocks: [...] }`.
 | `{ "tags": { "label","tone","items":[…] } }` | plain chip row |
 | `{ "labeled": { "label","value","highlight","multiline" } }` | labeled value (highlight = amber callout) |
 | `{ "status": { "label","value","tone" } }` | status chip |
+| `{ "refs": { "label","items":["page-id",…] } }` | related-pages chip list (items are doc ids) |
 
 **Tones** are validated by the driver (fail-fast with the allowed list):
 
@@ -116,6 +118,43 @@ slate banner). Follow with a **badges** "at a glance" row. Use a 3-column
 highlighted **labeled** value as a design "north star." Close with a **swatch**
 palette and a **tags** references row. The built-in `demo` page is a working
 template of exactly this rhythm — copy its structure.
+
+### Moment story pages
+
+A "moment" page narrates one story beat (e.g. `the-child-prodigy`,
+`the-crew-assembles`). These follow a canonical six-section stack — the same
+one the website's UI seeds via the "Moment story" page style
+(`src/lib/docs/momentScaffold.ts`):
+
+1. **Tagline** — a `hero` (`tone: "dark"`, `eyebrow: "Moment"`).
+2. **Sequence of Events** — `h2` + a `beat` marker before each paragraph of
+   prose (beats auto-number; don't hand-number them).
+3. **Purpose & Arc** — what story beat this moment serves, what it requires
+   going in and makes true coming out.
+4. **Characters & Motivations** — one `@mention` per character with what they
+   want and what they won't do to get it, plus a `refs` widget.
+5. **Tone & Pacing** — the emotional target and tempo, and where it pivots.
+6. **Setting & Lore** — where it happens, what lore it depends on and
+   establishes, `@mention`-ed, plus a `refs` widget.
+
+Terse spec sketch (fill in the `…`):
+
+```json
+{ "blocks": [
+  { "hero": { "eyebrow": "Moment", "title": "…", "subtitle": "…", "tone": "dark" } },
+  { "h2": "Sequence of Events" },
+  { "beat": "Opening image" }, { "p": "…" },
+  { "beat": "Turn" }, { "p": "…" },
+  { "beat": "Aftermath" }, { "p": "…" },
+  { "h2": "Purpose & Arc" }, { "p": "…" },
+  { "h2": "Characters & Motivations" },
+  { "bullet": "@some-character — wants …, but will not …" },
+  { "refs": { "label": "Characters", "items": ["some-character"] } },
+  { "h2": "Tone & Pacing" }, { "p": "…" },
+  { "h2": "Setting & Lore" }, { "p": "…ties to @some-lore-page…" },
+  { "refs": { "label": "Lore & places", "items": ["some-lore-page"] } }
+] }
+```
 
 ## Verify the result renders (don't trust the JSON alone)
 
