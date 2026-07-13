@@ -56,10 +56,12 @@ import {
   type PageLegend,
 } from '@/lib/docs/legend';
 import { detectCandidates, type CollectionCandidate } from '@/lib/collections/detect';
+import type { Collection } from '@/lib/collections/types';
 import { extractMentionIds, findMentionQuery } from '@/lib/docs/mentions';
 import { splitInline, toggleInlineMark, type InlineSegment, type InlineMark } from '@/lib/docs/inlineFormat';
 import { buildMentionIndex, type MentionTarget } from '@/lib/docs/mentionTarget';
-import { CollectionTagOverlay } from '@/components/collections/CollectionTagOverlay';
+import { CollectionShelfControl } from '@/components/collections/CollectionShelfControl';
+import { useCollections } from '@/components/collections/CollectionsProvider';
 import { useDocs } from './DocsProvider';
 import { WidgetHost, WIDGET_LIST, makeWidgetBlock } from './widgets/registry';
 import { WidgetShelf } from './WidgetShelf';
@@ -216,6 +218,8 @@ export function PageEditor({
   const blocksRef = useRef<DocBlock[]>(blocks);
   blocksRef.current = blocks;
 
+  const { collections } = useCollections();
+
   useEffect(() => {
     const order = getOrder(doc);
     const yBlocks = getBlocks(doc);
@@ -309,7 +313,6 @@ export function PageEditor({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null);
 
-  const wrapRef = useRef<HTMLDivElement>(null);
   const taRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const focusReq = useRef<{ id: string; caret: number } | null>(null);
   const lastFocusedId = useRef<string | null>(null);
@@ -1034,6 +1037,15 @@ export function PageEditor({
   // yields `undefined` and the shelf hides itself.
   const activeBlock = activeId && activeId !== TRAILER_ID ? blocks.find((b) => b.id === activeId) : undefined;
 
+  // Collection state for the shelf's "Collection" action — a not-yet-captured
+  // candidate anchored to this exact block, or a collection already captured
+  // from it. Resolved here (not inside the shelf) so BlockShelf can decide
+  // whether to render the divider next to it.
+  const activeCandidate = activeBlock ? candidates.find((c) => c.anchorBlockId === activeBlock.id) : undefined;
+  const activeLinkedCollection = activeBlock && docId
+    ? collections.find((c) => c.sourceDocId === docId && c.sourceBlockId === activeBlock.id)
+    : undefined;
+
   return (
     <div className="flex gap-4" onKeyDown={handleHistoryKey}>
       <div className="min-w-0 flex-1">
@@ -1052,8 +1064,7 @@ export function PageEditor({
             ↷ Redo
           </button>
         </div>
-        <div className="relative">
-        <div ref={wrapRef} className="flex flex-wrap items-start gap-x-3">
+        <div className="flex flex-wrap items-start gap-x-3">
           {displayBlocks.map((block) => {
             const isTrailer = block.id === TRAILER_ID;
             const layout = (!isTrailer && block.layout) || DEFAULT_LAYOUT;
@@ -1091,21 +1102,21 @@ export function PageEditor({
                   }`}
                 />
               )}
-              {/* Drag grip — only on the active or hovered block, so there's a clear
-                  handle without the old always-on gutter. Drop beside a block to
-                  form a column; drop above/below to stack. */}
+              {/* Drag grip — sits in a permanent left gutter (see pl-6 below) so it
+                  never overlaps text, whether or not it's currently visible. Only
+                  its opacity changes on hover/active; the reserved space doesn't. */}
               {!isTrailer && (
                 <div
                   draggable
                   onDragStart={(e) => onGripDragStart(e, block.id)}
                   onDragEnd={endDrag}
                   title="Drag to move — drop beside a block to form a column"
-                  className={`absolute left-0 top-0 z-10 flex h-5 w-4 cursor-grab items-center justify-center rounded-br-md bg-surface/85 text-[12px] leading-none text-muted shadow-sm ring-1 ring-line transition-opacity hover:text-ink active:cursor-grabbing ${
+                  className={`absolute left-0 top-0.5 z-10 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-[12px] leading-none text-muted transition-opacity hover:bg-surface hover:text-ink hover:shadow-sm hover:ring-1 hover:ring-line active:cursor-grabbing ${
                     activeId === block.id || dragId === block.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
                 >⠿</div>
               )}
-              <div className="relative min-w-0">
+              <div className="relative min-w-0 pl-6">
                 {remoteByBlock.get(block.id)?.length ? (
                   <>
                     <RemoteBlockAccent color={remoteByBlock.get(block.id)![0].color} />
@@ -1167,8 +1178,6 @@ export function PageEditor({
             </div>
           )}
         </div>
-        {docId && <CollectionTagOverlay wrapRef={wrapRef} candidates={candidates} docId={docId} />}
-        </div>
       </div>
       <WidgetShelf blocks={blocks} onInsertWidget={insertWidget} onInsertBlocks={insertBlocks} />
       {activeBlock && selectedIds.size < 2 && (
@@ -1177,6 +1186,9 @@ export function PageEditor({
           index={blocks.findIndex((b) => b.id === activeBlock.id)}
           total={blocks.length}
           legend={legend}
+          docId={docId}
+          collectionCandidate={activeCandidate}
+          linkedCollection={activeLinkedCollection}
           onMove={(dir) => moveBlock(activeBlock.id, dir)}
           onLayout={(patch) => setBlockLayout(activeBlock.id, patch)}
           onColor={(id) => setBlockColor(activeBlock.id, id)}
@@ -1636,12 +1648,17 @@ function adjustCaret(oldVal: string, newVal: string, caret: number): number {
 // the old per-block hover gutter: explicit Move ▲▼ buttons are far more reliable
 // than drag-to-reorder, and a single persistent bar never flickers on hover.
 
-function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, onDelete, onClose }: {
+function BlockShelf({ block, index, total, legend, docId, collectionCandidate, linkedCollection, onMove, onLayout, onColor, onDelete, onClose }: {
   block: DocBlock;
   /** The block's index in the real (non-trailer) order — bounds the move arrows. */
   index: number;
   total: number;
   legend: PageLegend;
+  docId?: string;
+  /** Set when this exact block anchors an auto-detected, not-yet-captured collection. */
+  collectionCandidate?: CollectionCandidate;
+  /** Set when this exact block already backs a saved collection. */
+  linkedCollection?: Collection;
   onMove: (dir: -1 | 1) => void;
   onLayout: (patch: Partial<BlockLayout>) => void;
   onColor: (id: string | null) => void;
@@ -1714,6 +1731,12 @@ function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, on
                 />
               )}
             </div>
+          </>
+        )}
+        {docId && (collectionCandidate || linkedCollection) && (
+          <>
+            {rule}
+            <CollectionShelfControl docId={docId} blockId={block.id} candidate={collectionCandidate} linked={linkedCollection} />
           </>
         )}
         {rule}

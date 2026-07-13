@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useCollections } from './CollectionsProvider';
+import { useDocs } from '@/components/docs/DocsProvider';
 import { COLLECTION_SOURCE_LABEL, type Collection, type CollectionItem } from '@/lib/collections/types';
 
 const input = 'rounded-lg border border-line px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brass';
@@ -15,10 +17,15 @@ export function CollectionEditor({
   onClose: () => void;
 }) {
   const { updateCollection, deleteCollection } = useCollections();
+  const { getById: getDocById } = useDocs();
+  const pathname = usePathname();
+  const docsBasePath = pathname?.startsWith('/app') ? '/app/docs' : '/docs';
   const [draft, setDraft] = useState<Collection>(collection);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const sourceDoc = draft.sourceDocId ? getDocById(draft.sourceDocId) : undefined;
 
   const set = (patch: Partial<Collection>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -79,6 +86,19 @@ export function CollectionEditor({
           <input value={draft.id} disabled className={`${input} w-full font-mono text-xs disabled:bg-canvas disabled:text-muted`} />
         </div>
       </div>
+
+      {draft.sourceDocId && (
+        <p className="text-xs text-muted">
+          Captured from{' '}
+          {sourceDoc ? (
+            <a href={`${docsBasePath}/${sourceDoc.id}`} className="font-semibold text-ink hover:text-brass hover:underline">
+              {sourceDoc.title}
+            </a>
+          ) : (
+            <span className="italic">a page that no longer exists ({draft.sourceDocId})</span>
+          )}
+        </p>
+      )}
 
       <div>
         <label className="mb-1 block font-mono text-xs font-semibold uppercase tracking-wide text-muted">Description</label>
