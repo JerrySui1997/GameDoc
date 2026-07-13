@@ -86,7 +86,7 @@ export function Hero({ props, onChange }: WidgetProps) {
         onChange={(e) => set('title', e.target.value)}
         onBlur={() => commit('title')}
         placeholder="Title"
-        className={clsx(fieldBase, placeholder, 'mt-2 text-3xl font-bold tracking-tight')}
+        className={clsx(fieldBase, placeholder, 'mt-2 text-3xl leading-snug font-bold tracking-tight')}
       />
       <MentionField
         value={subtitle}
