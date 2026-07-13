@@ -53,3 +53,276 @@ bc28a0a Make the live store the single source of truth
 production/session-logs/agent-audit.log
 ---
 
+## Session End: 20260710_204821
+### Commits
+eb6bf73 Fix: restore blockChrome imports in PageEditor
+ef085d0 Merge main → develop: bring first-paint flash fix to deployed branch
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+---
+
+## Session End: 20260710_210730
+### Commits
+eb6bf73 Fix: restore blockChrome imports in PageEditor
+ef085d0 Merge main → develop: bring first-paint flash fix to deployed branch
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260710_222939
+### Commits
+eb6bf73 Fix: restore blockChrome imports in PageEditor
+ef085d0 Merge main → develop: bring first-paint flash fix to deployed branch
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260710_223034
+### Commits
+eb6bf73 Fix: restore blockChrome imports in PageEditor
+ef085d0 Merge main → develop: bring first-paint flash fix to deployed branch
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_093732
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_093921
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_094108
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_094135
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_094220
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_102134
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_102147
+### Uncommitted Changes
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+---
+
+## Session End: 20260711_123328
+### Uncommitted Changes
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260711_123956
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260711_124545
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260711_135506
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260711_135932
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260711_212241
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260712_102736
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260712_110441
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260712_110603
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260712_110805
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+---
+
+## Session End: 20260712_111226
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+
+## Session End: 20260712_111615
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+README.md
+package.json
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/docs/useYDoc.ts
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+
+## Session End: 20260712_112102
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+README.md
+package.json
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/docs/useYDoc.ts
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+
+## Session End: 20260712_210700
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+.claude/skills/team-narrative/SKILL.md
+README.md
+mcp/src/collab.ts
+package.json
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/components/docs/WidgetShelf.tsx
+src/components/docs/useYDoc.ts
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+
+## Session End: 20260712_224428
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+.claude/skills/team-narrative/SKILL.md
+README.md
+mcp/src/collab.ts
+package.json
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/app/(personal)/app/collections/page.tsx
+src/app/(site)/collections/page.tsx
+src/components/collections/CollectionEditor.tsx
+src/components/collections/CollectionTagOverlay.tsx
+src/components/docs/PageEditor.tsx
+src/components/docs/WidgetShelf.tsx
+src/components/docs/useYDoc.ts
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+
+## Session End: 20260713_093809
+### Uncommitted Changes
+.claude/skills/create-game-design-page/SKILL.md
+.claude/skills/create-game-design-page/driver.mjs
+.claude/skills/team-narrative/SKILL.md
+README.md
+mcp/src/collab.ts
+package.json
+production/session-logs/agent-audit.log
+production/session-logs/session-log.md
+src/app/(personal)/app/collections/page.tsx
+src/app/(site)/collections/page.tsx
+src/components/collections/CollectionEditor.tsx
+src/components/collections/CollectionTagOverlay.tsx
+src/components/docs/PageEditor.tsx
+src/components/docs/WidgetShelf.tsx
+src/components/docs/useYDoc.ts
+src/components/templates/NodeCreator.tsx
+src/data/docs/content.json
+---
+

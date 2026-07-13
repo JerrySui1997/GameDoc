@@ -57,7 +57,20 @@ Delegate to **narrative-director**:
 - Identify characters involved, their motivations, and how this fits the overall arc
 - Set the emotional tone and pacing targets
 - Specify any lore dependencies or new lore this introduces
+- **Before approving, fetch the FULL existing body of every named character/location page this beat touches** (not a partial or minified-JSON skim) and check for direct contradictions — e.g. a proposed beat implying a first meeting, separation, or origin that an already-published page says never happened. A partial parse that misses this is the single biggest source of published-canon contradictions in this pipeline; if any page can't be fully read, say so explicitly rather than approving on an incomplete check.
 - Output: narrative brief with story requirements
+
+**Single-story-beat page format ("moment" pages):** If this content is a standalone story beat (one scene/sequence with its own page, in the pattern of `the-child-prodigy`, `money-is-in-the-dream`, `the-crew-assembles`, `the-porch-light`), it must use the shared structure seeded by `src/lib/docs/momentScaffold.ts`:
+1. `hero` widget (eyebrow "Moment", the page's actual title, one-line subtitle)
+2. **Sequence of Events** — a `beat` marker (short label) immediately before each `paragraph` of prose; every sentence of established narrative content must survive verbatim, beats only add structure, they don't rewrite prose
+3. **Purpose & Arc** — what this beat serves, what must be true before/after it, where it sits on the overall arc
+4. **Characters & Motivations** — one bullet per character, `@mention`ed, "wants X, but will not Y"
+5. **Tone & Pacing** — emotional target, tempo, where the tone pivots
+6. **Setting & Lore** — where this happens, what lore it depends on and what it establishes, `@mention`ed
+7. **Level & Interaction Notes** — whether the beat is playable; if so, whether choices actually branch or are illusory; if not, say so plainly
+8. A single closing `refs` widget labeled "Related", listing every `@mention`ed page
+
+Do not invent a different shape for a new moment page, and do not silently drop a section when reformatting an existing one.
 
 ### Phase 2: World Foundation (parallel)
 Delegate in parallel — issue all three Task calls simultaneously before waiting for any result:
@@ -75,9 +88,10 @@ Delegate to **level-designer**:
 ### Phase 4: Review and Consistency
 Delegate to **narrative-director**:
 - Review all dialogue against character voice profiles
-- Verify lore consistency across new and existing entries
+- Verify lore consistency across new and existing entries — this must be a full-body cross-check against every touched character/location page (see Phase 1's fetch requirement), not a re-confirmation of Phase 1's summary
 - Confirm narrative pacing aligns with level design
 - Check that all mysteries have documented "true answers"
+- Check any relevant agent-memory canon notes (e.g. `.claude/agent-memory/world-builder/`) for prior rulings on the same characters/locations before finalizing — a beat that resolves a previously-open thread should update that memory rather than leave it stale
 
 ### Phase 5: Polish (parallel)
 Delegate in parallel:
