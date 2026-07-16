@@ -20,6 +20,11 @@ export default {
   // reads in src/lib/auth/session.ts) — always set explicitly so Auth.js
   // never falls back to reading that other var itself.
   secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
+  // Railway isn't auto-detected the way Vercel is, so Auth.js's host-trust
+  // check rejects every request by default ("UntrustedHost"). Safe to trust
+  // here — Railway terminates TLS at its edge and forwards the real host via
+  // X-Forwarded-Host, so this isn't trusting an arbitrary client-supplied header.
+  trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
     jwt({ token, user, trigger, session }) {
