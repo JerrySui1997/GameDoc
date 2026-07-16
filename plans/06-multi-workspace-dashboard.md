@@ -131,4 +131,5 @@ Unchanged — see `plans/05-account-settings.md` Phases 3-5. These layer on top 
 
 ## Open questions for the user
 
-None outstanding — ready to implement.
+- **Flagship WS-gate tightening** (`server/collab-core.ts` ~line 282, see the Phase 3 note above): still deliberately deferred. Tightening it requires confirming the flagship workspace row actually exists/is owned correctly in the production DB first — a read-only `sqlite3` query against the production `auth.db` (`select id, name, ownerId, kind from workspace where kind='flagship';`). Attempted via `railway ssh` on 2026-07-15 with explicit user authorization; failed — `railway ssh` requires a full user login with a registered SSH key, which the project-scoped `RAILWAY_TOKEN` cannot provide (a tooling limitation, not a permission-scope one). Needs either the user to run that query themselves (they have full `railway login` access), or an explicit decision to keep the looser flagship gate indefinitely.
+- **`scripts/seed-workspaces.ts` against production**: not yet run. Idempotent and safe to run more than once, but writes real data, so it needs explicit user go-ahead each time per standing practice — not run automatically as part of this PR.

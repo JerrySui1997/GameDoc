@@ -139,6 +139,22 @@ This directly answers the "Open questions" below — Phase 6 cannot proceed yet.
 
 Also confirmed via `git log origin/develop` that the `develop` branch (which auto-deploys) is unaffected by any of this work — safe to keep iterating on the feature branch without a rollout deadline.
 
+### Phase 6 — env vars resolved (2026-07-16)
+
+User chose **email-only** sign-in for now (OAuth deferred, not needed to unblock). Diagnosed why an earlier manual test never received a magic-link email: `EMAIL_SERVER` was unset in production, so `src/auth.ts`'s dev-mode fallback (`console.log` the link instead of sending it) was silently active on live prod — this was an already-live gap in the currently-deployed `/app` sign-in flow (confirmed via `git show origin/develop:src/auth.ts`), not something newly introduced by this branch's work.
+
+User supplied Brevo SMTP credentials (300 free emails/day, no card required — chosen over Resend/SendGrid/Postmark/SES for the free tier). With explicit user confirmation ("Yes."), wrote to Railway production (`GameDoc` service, `production` environment):
+- `EMAIL_SERVER` (Brevo SMTP connection string, login/key URL-encoded)
+- `EMAIL_FROM` = `autobot <autobot@easygdd.com>`
+- `GAMEDOC_ACCOUNTS_SECRET` (freshly generated 32-byte random secret, generated and piped straight to `railway variable set --stdin` — never printed to any output)
+
+All three writes used `--stdin` and suppressed command output; verified success afterward via a names-only variable listing (never raw values). This took effect via a service restart on the **already-deployed** production code — it did not deploy any of this session's branch work, since none of Plan 05/06's code had merged to `develop` yet at that point.
+
+**Still outstanding before a full Phase 6 rollout:**
+- `scripts/seed-workspaces.ts` has not been run against production (backfills workspace rows for accounts that pre-date this feature) — still needs explicit user go-ahead each time, per standing practice for production-writing scripts.
+- `SITE_PASSWORD` has not been removed from Railway — no cutover date has been set.
+- Merging Plan 05/06 to `develop` (which auto-deploys) hasn't happened yet — this doc reflects only PR #24 having been opened against `develop`, not merged.
+
 ---
 
 ## Open questions for the user
