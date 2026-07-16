@@ -16,7 +16,8 @@
     "validate": "tsx scripts/validate-nightmares.ts",
     "crossref": "tsx scripts/crossref.ts",
     "doc-graph": "tsx scripts/doc-graph-report.ts",
-    "hexel-test": "tsx scripts/hexel-selftest.ts"
+    "hexel-test": "tsx scripts/hexel-selftest.ts",
+    "auth-test": "tsx scripts/auth-selftest.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

@@ -20,6 +20,12 @@ export default {
   // reads in src/lib/auth/session.ts) — always set explicitly so Auth.js
   // never falls back to reading that other var itself.
   secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
+  // Railway terminates TLS at its proxy and forwards requests to the Next.js
+  // process with an X-Forwarded-Host that doesn't match the bare upstream
+  // host. Auth.js v5 distrusts forwarded hosts by default and would reject
+  // the internal auth request built by signIn('nodemailer', …) — blocking
+  // all email magic-link dispatch — so trust the forwarded host explicitly.
+  trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
     jwt({ token, user }) {
