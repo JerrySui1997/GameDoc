@@ -16,10 +16,20 @@ import GitHub from 'next-auth/providers/github';
 // It's added only in src/auth.ts's Node-only full config.
 export default {
   providers: [Google, GitHub],
-  // Distinct from AUTH_SECRET (which the pre-existing site-password gate
-  // reads in src/lib/auth/session.ts) — always set explicitly so Auth.js
-  // never falls back to reading that other var itself.
-  secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
+  // Preferred secret is GAMEDOC_ACCOUNTS_SECRET (distinct from AUTH_SECRET,
+  // which the pre-existing site-password gate in src/lib/auth/session.ts
+  // reads). We set it explicitly so Auth.js never falls back to reading that
+  // other var itself. Production history (Railway 500s surfaced as
+  // error=Configuration) shows deployments sometimes only have the legacy
+  // AUTH_SECRET populated — Auth.js itself would otherwise infer AUTH_SECRET
+  // automatically in @auth/core/lib/utils/env.js's setEnvDefaults, but only
+  // when `config.secret` is unset; once we provide *any* value here that
+  // inference is skipped. Falling back to AUTH_SECRET ourselves re-enables
+  // the existing production variable without hard-coding or reading env
+  // files, and keeps GAMEDOC_ACCOUNTS_SECRET preferred. If neither is set
+  // the value is undefined and Auth.js surfaces MissingSecret, which is the
+  // honest signal that an operator must provision one.
+  secret: process.env.GAMEDOC_ACCOUNTS_SECRET || process.env.AUTH_SECRET,
   // Railway terminates TLS at its proxy and forwards requests to the Next.js
   // process with an X-Forwarded-Host that doesn't match the bare upstream
   // host. Auth.js v5 distrusts forwarded hosts by default and would reject
@@ -28,15 +38,8 @@ export default {
   trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
-    jwt({ token, user, trigger, session }) {
+    jwt({ token, user }) {
       if (user) token.sub = user.id;
-      // Server-side unstable_update({ user: { name } }) calls (the account
-      // page's display-name edit) land here with trigger 'update' — merge
-      // rather than re-deriving from the DB, since this Edge-safe config
-      // can't import Drizzle.
-      if (trigger === 'update' && typeof session?.user?.name === 'string') {
-        token.name = session.user.name;
-      }
       return token;
     },
     session({ session, token }) {
