@@ -20,10 +20,11 @@ export default {
   // reads in src/lib/auth/session.ts) — always set explicitly so Auth.js
   // never falls back to reading that other var itself.
   secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
-  // Railway isn't auto-detected the way Vercel is, so Auth.js's host-trust
-  // check rejects every request by default ("UntrustedHost"). Safe to trust
-  // here — Railway terminates TLS at its edge and forwards the real host via
-  // X-Forwarded-Host, so this isn't trusting an arbitrary client-supplied header.
+  // Railway terminates TLS at its proxy and forwards requests to the Next.js
+  // process with an X-Forwarded-Host that doesn't match the bare upstream
+  // host. Auth.js v5 distrusts forwarded hosts by default and would reject
+  // the internal auth request built by signIn('nodemailer', …) — blocking
+  // all email magic-link dispatch — so trust the forwarded host explicitly.
   trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
