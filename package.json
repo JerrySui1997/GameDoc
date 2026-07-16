@@ -22,7 +22,7 @@
     "backup-live": "tsx scripts/backup-live.ts",
     "doc-graph": "tsx scripts/doc-graph-report.ts",
     "hexel-test": "tsx scripts/hexel-selftest.ts",
-    "auth-test": "tsx scripts/auth-selftest.ts"
+    "auth-test": "tsx scripts/auth-selftest.ts",
     "hexel-scenarios": "tsx scripts/hexel-scenarios/index.ts",
     "audit-stub-rooms": "tsx scripts/audit-stub-rooms.ts"
   },
