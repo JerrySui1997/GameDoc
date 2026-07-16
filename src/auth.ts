@@ -9,66 +9,79 @@ import { writeDocs } from '@/lib/docs/store';
 import { serializeBlocks, emptyProse } from '@/lib/docs/blocks';
 import { FLAGSHIP_OWNER_EMAIL, FLAGSHIP_WORKSPACE_ID, personalWorkspaceId } from '@/lib/workspaces/constants';
 
-// Build the Nodemailer `server` config. next-auth passes this straight to
-// nodemailer.createTransport(), which accepts a URL string OR an options
-// object. We return an object so we can force fast-fail timeouts — the URL
-// string form uses nodemailer's very long defaults (connectionTimeout 120s,
-// socketTimeout 600s), which exceed Railway's edge proxy window and produce a
-// hung POST with no HTTP response instead of a clean error.
+// Send the Auth.js magic-link email via Brevo's HTTP API (port 443) instead of
+// SMTP (port 587/465). Railway silently drops outbound SMTP egress on
+// 25/465/587 for anti-abuse, which made nodemailer's SMTP send hang forever —
+// the sign-in POST never returned. Brevo's REST endpoint runs on 443, which
+// Railway does NOT block, so this sidesteps the egress policy entirely.
 //
-// EMAIL_SERVER example: smtp://LOGIN:KEY@smtp-relay.brevo.com:587
-// (login may be %40-encoded; new URL() decodes it for us).
-function smtpServer() {
-  // Dev/local: no EMAIL_SERVER — return the localhost placeholder that only
-  // exists to satisfy Nodemailer()'s eager falsy-server check. It is never
-  // connected to because sendVerificationRequest is overridden below.
-  if (!process.env.EMAIL_SERVER) return 'smtp://localhost:1025';
+// Requires BREVO_API_KEY (an `xkeysib-…` key from Brevo → SMTP & API → API
+// keys, NOT the `xsmtpsib-…` SMTP master key — the two are distinct and the
+// SMTP key returns 401 on the REST API). Falls back to logging the link when
+// BREVO_API_KEY is unset, so dev/local stays testable without any credentials.
+async function sendMagicLinkEmail({
+  identifier,
+  url,
+  from,
+}: {
+  identifier: string;
+  url: string;
+  from: string;
+}) {
+  if (!process.env.BREVO_API_KEY) {
+    console.log(`[auth] magic link for ${identifier}: ${url}`);
+    return;
+  }
 
-  const u = new URL(process.env.EMAIL_SERVER);
-  const port = Number(u.port) || 587;
-  return {
-    host: u.hostname,
-    port,
-    // Port 465 = implicit TLS (secure:true). Any other port (587/2525) =
-    // plaintext connect then STARTTLS upgrade (secure:false). Brevo's relay
-    // on 587 uses STARTTLS, so secure:false is correct here.
-    secure: port === 465,
-    auth: {
-      user: decodeURIComponent(u.username),
-      pass: decodeURIComponent(u.password),
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'accept': 'application/json',
+      'content-type': 'application/json',
     },
-    // Fast-fail budget, all well under Railway's ~30-45s edge timeout:
-    connectionTimeout: 10_000, // TCP connect must complete within 10s
-    greetingTimeout: 10_000, //   220 banner must arrive within 10s
-    socketTimeout: 20_000, //     no socket inactivity beyond 20s
-  };
+    body: JSON.stringify({
+      sender: { email: from },
+      to: [{ email: identifier }],
+      subject: 'Sign in to GameDoc',
+      htmlContent: `<p>Click the link below to sign in to GameDoc:</p>` +
+        `<p><a href="${url}">Sign in</a></p>` +
+        `<p style="color:#888;font-size:12px">If you didn't request this, you can ignore this email.</p>`,
+      // Brevo tags help isolate auth-link volume in the dashboard.
+      tags: ['auth', 'magic-link'],
+    }),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`Brevo send failed: ${res.status} ${detail.slice(0, 200)}`);
+  }
 }
 
 // Node-only: pulls in the Drizzle adapter (native-addon-backed via
-// better-sqlite3) and the Nodemailer provider (Node's stream/net/tls), so
-// this must never be imported from Edge middleware — src/middleware.ts
-// builds its own Edge-safe instance from auth.config.ts alone instead, which
-// omits both.
+// better-sqlite3). The Nodemailer provider is retained only for its
+// email-type plumbing (identifier/url generation) — the actual send is
+// overridden above to use Brevo's HTTP API, so no SMTP connection is ever
+// opened. This module must never be imported from Edge middleware —
+// src/middleware.ts builds its own Edge-safe instance from auth.config.ts
+// alone, which omits the adapter.
 export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
   providers: [
     ...authConfig.providers,
     Nodemailer({
-      // Nodemailer() throws eagerly at construction if `server` is falsy —
-      // this placeholder only exists to satisfy that check. It's never
-      // actually connected to: when EMAIL_SERVER is unset, the overridden
-      // sendVerificationRequest below never calls createTransport at all.
-      server: process.env.EMAIL_SERVER || 'smtp://localhost:1025',
+      // Nodemailer() throws eagerly at construction if `server` is falsy; this
+      // placeholder is never connected to because sendVerificationRequest is
+      // overridden to call the Brevo HTTP API instead.
+      server: 'smtp://localhost:1025',
       from: process.env.EMAIL_FROM,
-      // No EMAIL_SERVER in dev: log the magic link instead of sending real
-      // mail, so the sign-in flow is testable without SMTP credentials.
-      ...(process.env.EMAIL_SERVER
-        ? {}
-        : {
-            sendVerificationRequest({ identifier, url }) {
-              console.log(`[auth] magic link for ${identifier}: ${url}`);
-            },
-          }),
+      async sendVerificationRequest({ identifier, url }) {
+        await sendMagicLinkEmail({
+          identifier,
+          url,
+          from: process.env.EMAIL_FROM || 'noreply@easygdd.com',
+        });
+      },
     }),
   ],
   adapter: DrizzleAdapter(db, {
