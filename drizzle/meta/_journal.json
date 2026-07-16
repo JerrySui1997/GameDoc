@@ -8,6 +8,20 @@
       "when": 1783386323905,
       "tag": "0000_nifty_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783927111049,
+      "tag": "0001_blue_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1784012303146,
+      "tag": "0002_rare_phalanx",
+      "breakpoints": true
     }
   ]
 }

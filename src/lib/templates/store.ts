@@ -1,19 +1,21 @@
 import { TemplateCollectionSchema, type PageTemplate } from '@/lib/templates/types';
 import { readJsonCached, writeJsonFile } from '@/lib/store/json';
-import { dataFile, userDataFile } from '@/lib/store/paths';
+import { dataFile, userDataFile, workspaceDataFile } from '@/lib/store/paths';
 
 // Server-only store for page templates. Mirrors the docs store: reads/writes a
 // JSON collection under DATA_DIR through the shared atomic/serialized json store.
 
 const CONTENT_FILE = dataFile('templates');
 
-// Personal spaces (Step 5 of the accounts plan) pass { userId } to read/write
-// a private per-user file instead of the legacy global one. Omitted entirely,
-// every call site keeps today's behavior unchanged.
-export type TemplatesScope = { userId: string } | undefined;
+// Three scopes, matching the three workspace kinds (plans/06 Phase 3) — see
+// docs/store.ts's DocsScope for the full rationale.
+export type TemplatesScope = { userId: string } | { workspaceId: string } | undefined;
 
 function resolveFile(scope: TemplatesScope): string {
-  return scope ? userDataFile(scope.userId, 'templates') : CONTENT_FILE;
+  if (!scope) return CONTENT_FILE;
+  return 'userId' in scope
+    ? userDataFile(scope.userId, 'templates')
+    : workspaceDataFile(scope.workspaceId, 'templates');
 }
 
 /** Read and validate all templates from disk (memoized by file mtime). */

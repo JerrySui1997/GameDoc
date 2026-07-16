@@ -2,25 +2,38 @@ import NextAuth from 'next-auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import authConfig from './auth.config';
-import { AUTH_COOKIE, authEnabled, safeEqual, sessionToken } from '@/lib/auth/session';
+import { safeEqual } from '@/lib/auth/session';
 
-// ── Site password gate (HTTP) ───────────────────────────────────────────────
+// ── Session gate (HTTP) ──────────────────────────────────────────────────────
 // Covers the two HTTP surfaces — SSR pages and the REST API — in dev and prod
 // alike (the production custom server runs Next via getRequestHandler, so
 // middleware still executes). The /collab WebSocket is gated separately in
 // server/collab-core.ts, since upgrades never reach middleware.
+//
+// A single NextAuth session check covers every path (both the flagship site
+// and /app/*). Per-workspace membership/role enforcement is a Plan 06 Phase 2+
+// concern — this phase only needs "is anyone signed in."
 
-// Reachable without the password: the healthcheck (Railway probes it with no
-// cookie) and the login/logout endpoints (needed to get in and out). Static
-// assets are excluded by `config.matcher` below.
-const PUBLIC_PATHS = ['/login', '/api/login', '/api/logout', '/api/health'];
+// Reachable without a session: the shared login page and the healthcheck
+// (Railway probes it with no cookie). Static assets are excluded by
+// `config.matcher` below.
+const PUBLIC_PATHS = ['/app/login', '/api/health'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-function isUnderPath(pathname: string, base: string): boolean {
-  return pathname === base || pathname.startsWith(`${base}/`);
+// Page routes (never /api/) reachable without a session — the per-workspace
+// access check still happens, just deeper in, at the page/layout level
+// (Phase 4.4): `/invite/[token]` is the entire point of the link-invite flow
+// (a visitor with no account yet has to be able to load it), and
+// `/w/[workspaceId]/*` additionally accepts a signed pre-account view cookie
+// (src/lib/workspaces/inviteCookie.ts) as an alternative to a real session —
+// its layout redirects to /app/login if neither is present.
+const SOFT_PUBLIC_PREFIXES = ['/invite/', '/w/'];
+
+function isSoftPublicPage(pathname: string): boolean {
+  return !pathname.startsWith('/api/') && SOFT_PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 // Edge-safe: built from auth.config.ts alone (providers + callbacks, no
@@ -45,53 +58,25 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   // OAuth callback + magic-link verification endpoint — must stay reachable
-  // with no gate at all (neither this nor the legacy password check below).
+  // with no gate at all.
   if (pathname.startsWith('/api/auth/')) return NextResponse.next();
-
-  // Personal spaces: gated by an Auth.js session, independent of the legacy
-  // SITE_PASSWORD switch below — signing in here has nothing to do with the
-  // owner's shared password, and vice versa.
-  if (isUnderPath(pathname, '/app') || isUnderPath(pathname, '/api/app')) {
-    if (pathname === '/app/login') return NextResponse.next();
-    const session = await personalAuth();
-    if (session?.user) return NextResponse.next();
-    if (isUnderPath(pathname, '/api/app')) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
-    const login = req.nextUrl.clone();
-    login.pathname = '/app/login';
-    login.search = '';
-    login.searchParams.set('next', pathname + search);
-    return NextResponse.redirect(login);
-  }
-
-  // Gate is off entirely unless a shared password is configured.
-  if (!authEnabled()) return NextResponse.next();
-
-  if (pathname.startsWith('/api/') && hasValidAgentBearer(req)) return NextResponse.next();
-
-  const authed = safeEqual(req.cookies.get(AUTH_COOKIE)?.value, await sessionToken());
-
-  if (authed) {
-    // Signed in already — no reason to sit on the login screen.
-    if (pathname === '/login') {
-      const home = req.nextUrl.clone();
-      home.pathname = '/';
-      home.search = '';
-      return NextResponse.redirect(home);
-    }
-    return NextResponse.next();
-  }
 
   if (isPublic(pathname)) return NextResponse.next();
 
-  // Unauthenticated: fail API calls loudly, send page loads to the login screen
-  // (remembering where they were headed).
+  if (isSoftPublicPage(pathname)) return NextResponse.next();
+
+  if (pathname.startsWith('/api/') && hasValidAgentBearer(req)) return NextResponse.next();
+
+  const session = await personalAuth();
+  if (session?.user) return NextResponse.next();
+
+  // Unauthenticated: fail API calls loudly, send page loads to the shared
+  // login screen (remembering where they were headed).
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const login = req.nextUrl.clone();
-  login.pathname = '/login';
+  login.pathname = '/app/login';
   login.search = '';
   login.searchParams.set('next', pathname + search);
   return NextResponse.redirect(login);

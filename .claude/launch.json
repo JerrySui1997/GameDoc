@@ -31,6 +31,18 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:all"],
       "port": 3000
+    },
+    {
+      "name": "dev:lan",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:lan"],
+      "port": 3000
+    },
+    {
+      "name": "dev:local-collab",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:local-collab"],
+      "port": 3000
     }
   ]
 }

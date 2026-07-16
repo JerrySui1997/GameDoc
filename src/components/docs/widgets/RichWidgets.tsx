@@ -6,6 +6,7 @@ import { BlockLabel, parseJson } from '../blocks/shared';
 import { TONES } from '@/lib/templates/types';
 import { tonalName } from '@/lib/color/tonalName';
 import { blocksToPlainText, parseBody } from '@/lib/docs/blocks';
+import { resolveRowHue, rowColors, type RowColors } from '@/lib/docs/hierarchyColor';
 import { useDocs } from '../DocsProvider';
 import { MentionField } from './MentionField';
 import type { WidgetProps } from './types';
@@ -86,7 +87,7 @@ export function Hero({ props, onChange }: WidgetProps) {
         onChange={(e) => set('title', e.target.value)}
         onBlur={() => commit('title')}
         placeholder="Title"
-        className={clsx(fieldBase, placeholder, 'mt-2 text-3xl font-bold tracking-tight')}
+        className={clsx(fieldBase, placeholder, 'mt-2 text-3xl leading-snug font-bold tracking-tight')}
       />
       <MentionField
         value={subtitle}
@@ -425,6 +426,7 @@ function ChildPageCard({
   overridden,
   excerpt,
   onRename,
+  colors,
 }: {
   href: string;
   realTitle: string;
@@ -432,12 +434,20 @@ function ChildPageCard({
   overridden: boolean;
   excerpt: string;
   onRename: (next: string) => void;
+  colors: RowColors | null;
 }) {
   const [v, setV] = useState(title);
   useEffect(() => setV(title), [title]);
 
   return (
-    <div className="group/card relative overflow-hidden rounded-xl border border-line bg-surface shadow-[0_4px_14px_rgba(26,37,48,0.06)]">
+    <div
+      className="group/card relative overflow-hidden rounded-xl border border-line bg-surface shadow-[0_4px_14px_rgba(26,37,48,0.06)]"
+      style={
+        colors
+          ? { backgroundColor: colors.fill, boxShadow: `0 4px 14px rgba(26,37,48,0.06), inset 3px 0 0 ${colors.rail}` }
+          : undefined
+      }
+    >
       <a href={href} aria-label={`Open ${realTitle}`} className="absolute inset-0" />
       <div className="relative space-y-1.5 p-4 pointer-events-none">
         <input
@@ -496,17 +506,21 @@ export function ChildPages({ props, onChange, docId }: WidgetProps) {
         </p>
       ) : (
         <div className={clsx('grid gap-4', COL_CLASS[columns])}>
-          {children.map((child) => (
-            <ChildPageCard
-              key={child.id}
-              href={`/docs/${child.id}`}
-              realTitle={child.title}
-              title={overrides[child.id] ?? child.title}
-              overridden={child.id in overrides}
-              excerpt={childExcerpt(child.body)}
-              onRename={(v) => rename(child.id, child.title, v)}
-            />
-          ))}
+          {children.map((child) => {
+            const resolved = resolveRowHue(docs, child.id);
+            return (
+              <ChildPageCard
+                key={child.id}
+                href={`/docs/${child.id}`}
+                realTitle={child.title}
+                title={overrides[child.id] ?? child.title}
+                overridden={child.id in overrides}
+                excerpt={childExcerpt(child.body)}
+                onRename={(v) => rename(child.id, child.title, v)}
+                colors={resolved ? rowColors(resolved.hue, resolved.depth) : null}
+              />
+            );
+          })}
         </div>
       )}
     </Frame>

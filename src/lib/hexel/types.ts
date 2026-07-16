@@ -23,13 +23,13 @@ import { z } from 'zod';
 // and to spot markers. 'auto' defers entirely to the engine (it guesses from a
 // tile's height/colour). Everything richer — room vs garden vs corridor — is
 // inferred per-region, never declared on a tile.
-export const TILE_ROLES = ['auto', 'floor', 'wall', 'water', 'door', 'marker', 'void'] as const;
+export const TILE_ROLES = ['auto', 'floor', 'wall', 'water', 'door', 'ramp', 'marker', 'void'] as const;
 export type TileRole = (typeof TILE_ROLES)[number];
 
 // What an annotation pins. A `space`/`feature` annotation names or re-kinds an
 // inferred region/object; a `relation` annotation asserts a link the engine
 // missed (or via `op` corrects the structure it found).
-export const ANNOTATION_SCOPES = ['space', 'feature', 'relation'] as const;
+export const ANNOTATION_SCOPES = ['space', 'feature', 'relation', 'route'] as const;
 export type AnnotationScope = (typeof ANNOTATION_SCOPES)[number];
 
 // Structural corrections an annotation can apply to the inference.
@@ -40,6 +40,25 @@ export type AnnotationOp = (typeof ANNOTATION_OPS)[number];
 // keep the painter's-order sort exact, so the camera snaps between them.
 export const ROTATIONS = [0, 90, 180, 270] as const;
 export type Rotation = (typeof ROTATIONS)[number];
+
+// Lattice size limits. 64×64×16 is ~65k columns — comfortably past every
+// scenario this product has been stress-tested with (see plans/03 Phase 5) —
+// while keeping a hand-authored ceiling so a bad paste/import can't produce an
+// unbounded scene the widget then has to render.
+export const BOUNDS_MIN: Vec3Like = { x: 1, y: 1, z: 1 };
+export const BOUNDS_MAX: Vec3Like = { x: 64, y: 64, z: 16 };
+type Vec3Like = { x: number; y: number; z: number };
+
+/** Clamp each axis of a bounds vector into [BOUNDS_MIN, BOUNDS_MAX], rounding
+ *  down to a whole number of cells. */
+export function clampBounds(b: Vec3Like): Vec3Like {
+  const axis = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.floor(v)));
+  return {
+    x: axis(b.x, BOUNDS_MIN.x, BOUNDS_MAX.x),
+    y: axis(b.y, BOUNDS_MIN.y, BOUNDS_MAX.y),
+    z: axis(b.z, BOUNDS_MIN.z, BOUNDS_MAX.z),
+  };
+}
 
 // Starter tile colours live here as literal hex (the widget styles cells with an
 // inline `--fill` custom property, not Tailwind, so the palette is fully custom
@@ -109,8 +128,74 @@ export const AnnotationSchema = z.object({
   /** Page ids this thing links to (character / location pages). */
   links: z.array(z.string()).catch([]),
   notes: z.string().catch(''),
+  /** Ordered movement path for a route-scoped annotation. */
+  path: z.array(Vec3Schema).optional().catch([]),
 });
 export type Annotation = z.infer<typeof AnnotationSchema>;
+
+// ── Editable level sequence ──────────────────────────────────────────────────
+
+export const SequenceCellChangeSchema = z.object({
+  x: z.number().int().catch(0),
+  y: z.number().int().catch(0),
+  z: z.number().int().catch(0),
+  /** A tile id sets/replaces the cell; null removes it. */
+  t: z.string().nullable().catch(null),
+});
+export type SequenceCellChange = z.infer<typeof SequenceCellChangeSchema>;
+
+export const SequenceAnnotationChangeSchema = z.object({
+  id: z.string().catch(''),
+  action: z.enum(['upsert', 'remove']).catch('upsert'),
+  annotation: AnnotationSchema.nullable().catch(null),
+});
+export type SequenceAnnotationChange = z.infer<typeof SequenceAnnotationChangeSchema>;
+
+export const SequenceCameraSchema = z.object({
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).catch(0),
+  floorZ: z.number().int().min(0).catch(0),
+  zoom: z.number().positive().catch(1),
+  tx: z.number().finite().catch(0),
+  ty: z.number().finite().catch(0),
+});
+export type SequenceCamera = z.infer<typeof SequenceCameraSchema>;
+
+export const SequenceLayersSchema = z.object({
+  semantics: z.boolean().catch(true),
+  routes: z.boolean().catch(true),
+  routeId: z.string().nullable().catch(null),
+  routeProgress: z.number().min(0).max(1).catch(0),
+});
+export type SequenceLayers = z.infer<typeof SequenceLayersSchema>;
+
+export const OverlayPointSchema = z.object({
+  x: z.number().min(0).max(1).catch(0),
+  y: z.number().min(0).max(1).catch(0),
+});
+export type OverlayPoint = z.infer<typeof OverlayPointSchema>;
+
+export const SequenceOverlaySchema = z.object({
+  id: z.string().catch(''),
+  kind: z.enum(['pen', 'arrow', 'circle', 'text']).catch('pen'),
+  points: z.array(OverlayPointSchema).catch([]),
+  color: z.string().catch('#b44f3b'),
+  width: z.number().positive().catch(2),
+  text: z.string().catch(''),
+});
+export type SequenceOverlay = z.infer<typeof SequenceOverlaySchema>;
+
+export const SequenceStepSchema = z.object({
+  id: z.string().catch(''),
+  title: z.string().catch(''),
+  narration: z.string().catch(''),
+  durationMs: z.number().int().positive().nullable().catch(null),
+  cellChanges: z.array(SequenceCellChangeSchema).catch([]),
+  annotationChanges: z.array(SequenceAnnotationChangeSchema).catch([]),
+  camera: SequenceCameraSchema,
+  layers: SequenceLayersSchema,
+  overlays: z.array(SequenceOverlaySchema).catch([]),
+});
+export type SequenceStep = z.infer<typeof SequenceStepSchema>;
 
 // ── Whole scene ─────────────────────────────────────────────────────────────
 
@@ -121,6 +206,7 @@ export const HexelSceneSchema = z.object({
   palette: z.array(PaletteTileSchema).catch([]),
   cells: z.array(CellSchema).catch([]),
   annotations: z.array(AnnotationSchema).catch([]),
+  sequence: z.array(SequenceStepSchema).catch([]),
   location: z
     .object({ name: z.string().catch(''), notes: z.string().catch('') })
     .catch({ name: '', notes: '' }),
@@ -169,6 +255,7 @@ export function makeAnnotation(anchor: Vec3, scope: AnnotationScope = 'space'): 
     withAnchor: null,
     links: [],
     notes: '',
+    path: [],
   };
 }
 
@@ -237,6 +324,7 @@ export function seedScene(): HexelScene {
     palette,
     cells,
     annotations: [],
+    sequence: [],
     location: { name: 'Untitled Place', notes: '' },
     defaultRot: 0,
   };
@@ -273,8 +361,9 @@ export function asScene(value: unknown): HexelScene {
   }
   cells.reverse();
   const annotations = base.annotations.map((a) => (a.id ? a : { ...a, id: mintId('an') }));
+  const bounds = clampBounds(base.bounds);
 
-  return { ...base, palette, cells, annotations };
+  return { ...base, palette, cells, annotations, bounds };
 }
 
 /** Serialize a scene back to the string stored in the block prop. */

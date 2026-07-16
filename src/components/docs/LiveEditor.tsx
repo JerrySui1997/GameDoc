@@ -96,7 +96,7 @@ export function LiveEditor({
         value={title}
         onChange={(e) => onTitle(e.target.value)}
         placeholder="Untitled"
-        className="w-full border-none bg-transparent text-4xl font-bold tracking-tight text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
+        className="w-full border-none bg-transparent text-4xl leading-snug font-bold tracking-tight text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
       />
 
       {collab ? (

@@ -3,14 +3,23 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DocsTree } from '@/components/docs/DocsTree';
+import { ProfileMenu } from '@/components/ProfileMenu';
 
-const UTILITY_LINKS = [{ href: '/app/collections', label: 'Collections' }];
+const UTILITY_LINKS = [
+  { href: '/dashboard', label: 'All projects' },
+  { href: '/app/collections', label: 'Collections' },
+  { href: '/app/sessions', label: 'Sessions' },
+];
 
 export function PersonalSidebarNav({
-  userLabel,
+  name,
+  email,
+  image,
   onLogout,
 }: {
-  userLabel: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
   /** Server action (from src/app/(personal)/app/layout.tsx) bound to signOut() —
    *  passed in rather than imported here since this is a Client Component and
    *  next-auth's signOut() must run server-side. */
@@ -51,15 +60,7 @@ export function PersonalSidebarNav({
           </nav>
 
           <div className="mt-4 border-t border-line-soft pt-3">
-            <p className="truncate px-2 text-xs text-muted">{userLabel}</p>
-            <form action={onLogout}>
-              <button
-                type="submit"
-                className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-muted transition-colors hover:bg-canvas hover:text-oxblood"
-              >
-                Log out
-              </button>
-            </form>
+            <ProfileMenu name={name} email={email} image={image} onLogout={onLogout} />
           </div>
         </div>
       </div>

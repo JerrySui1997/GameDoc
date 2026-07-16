@@ -1,18 +1,20 @@
+import { eq, and, isNull } from 'drizzle-orm';
 import NextAuth from 'next-auth';
 import Nodemailer from 'next-auth/providers/nodemailer';
 import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import authConfig from './auth.config';
 import { db } from '@/db/client';
-import { users, accounts, sessions, verificationTokens } from '@/db/schema';
+import { users, accounts, sessions, verificationTokens, workspaces, workspaceMembers } from '@/db/schema';
 import { writeDocs } from '@/lib/docs/store';
 import { serializeBlocks, emptyProse } from '@/lib/docs/blocks';
+import { FLAGSHIP_OWNER_EMAIL, FLAGSHIP_WORKSPACE_ID, personalWorkspaceId } from '@/lib/workspaces/constants';
 
 // Node-only: pulls in the Drizzle adapter (native-addon-backed via
 // better-sqlite3) and the Nodemailer provider (Node's stream/net/tls), so
 // this must never be imported from Edge middleware — src/middleware.ts
 // builds its own Edge-safe instance from auth.config.ts alone instead, which
 // omits both.
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   ...authConfig,
   providers: [
     ...authConfig.providers,
@@ -68,6 +70,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ],
         { userId: user.id }
       );
+
+      // Every new account gets its personal workspace row (plans/06 Phase 2.3).
+      // onConflictDoNothing guards against a rare double-fire rather than
+      // signaling a real error — this event has no retry semantics to protect.
+      await db
+        .insert(workspaces)
+        .values({
+          id: personalWorkspaceId(user.id),
+          name: 'Personal',
+          ownerId: user.id,
+          kind: 'personal',
+        })
+        .onConflictDoNothing();
+
+      // The flagship site's owner: seed the flagship workspace row the first
+      // time this specific email actually signs in, rather than requiring a
+      // separate bootstrap step (see scripts/seed-workspaces.ts for the
+      // fallback path covering accounts that already existed before this
+      // shipped).
+      if (user.email === FLAGSHIP_OWNER_EMAIL) {
+        await db
+          .insert(workspaces)
+          .values({
+            id: FLAGSHIP_WORKSPACE_ID,
+            name: 'GameDoc',
+            ownerId: user.id,
+            kind: 'flagship',
+          })
+          .onConflictDoNothing();
+      }
+
+      // Resolve any pending link-invite grants (Phase 4.4) for this email now
+      // that a real userId exists — upgrades from "email cookie, view-only"
+      // to a durable, cross-device membership at the link's actual role.
+      if (user.email) {
+        await db
+          .update(workspaceMembers)
+          .set({ userId: user.id, inviteEmail: null })
+          .where(and(eq(workspaceMembers.inviteEmail, user.email.toLowerCase()), isNull(workspaceMembers.userId)));
+      }
     },
   },
 });

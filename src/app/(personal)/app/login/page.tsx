@@ -10,13 +10,17 @@ export default async function PersonalLoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const session = await auth();
-  if (session?.user) redirect('/app');
-
   const { next } = await searchParams;
-  // Only ever hand the OAuth/email flow a same-space redirect target — never an
-  // arbitrary open redirect from the query string.
-  const redirectTo = next && next.startsWith('/app') ? next : '/app';
+  // Only ever hand the OAuth/email flow a safe same-origin relative path —
+  // never an arbitrary open redirect from the query string. This is the one
+  // shared login page for both /app/* and the main site, so a bare "/app"
+  // prefix check is too narrow; any path is fine as long as it can't escape
+  // the origin (no "//..." and no "scheme://...").
+  const isSafeNext = !!next && next.startsWith('/') && !next.startsWith('//') && !next.includes('://');
+  const redirectTo = isSafeNext ? next : '/app';
+
+  const session = await auth();
+  if (session?.user) redirect(redirectTo);
 
   async function withGoogle() {
     'use server';
@@ -40,10 +44,8 @@ export default async function PersonalLoginPage({
       <div className="w-full max-w-sm space-y-6 rounded-2xl border border-line bg-surface p-8 shadow-sm">
         <div>
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-brass">Game Design</p>
-          <h1 className="mt-1 text-2xl font-bold text-ink">Sign in to your workspace</h1>
-          <p className="mt-2 text-sm text-muted">
-            A private space for your own docs, collections, and templates — separate from the main site.
-          </p>
+          <h1 className="mt-1 text-2xl font-bold text-ink">Sign in</h1>
+          <p className="mt-2 text-sm text-muted">Sign in to continue to your workspace.</p>
         </div>
 
         <div className="space-y-2.5">

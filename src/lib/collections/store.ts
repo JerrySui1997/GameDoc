@@ -1,6 +1,6 @@
 import { CollectionCollectionSchema, type Collection } from '@/lib/collections/types';
 import { readJsonCached, writeJsonFile } from '@/lib/store/json';
-import { dataFile, userDataFile } from '@/lib/store/paths';
+import { dataFile, userDataFile, workspaceDataFile } from '@/lib/store/paths';
 
 // Server-only store for collections. Mirrors the docs/templates stores:
 // reads/writes a validated JSON collection under DATA_DIR through the shared
@@ -8,13 +8,15 @@ import { dataFile, userDataFile } from '@/lib/store/paths';
 
 const CONTENT_FILE = dataFile('collections');
 
-// Personal spaces (Step 5 of the accounts plan) pass { userId } to read/write
-// a private per-user file instead of the legacy global one. Omitted entirely,
-// every call site keeps today's behavior unchanged.
-export type CollectionsScope = { userId: string } | undefined;
+// Three scopes, matching the three workspace kinds (plans/06 Phase 3) — see
+// docs/store.ts's DocsScope for the full rationale.
+export type CollectionsScope = { userId: string } | { workspaceId: string } | undefined;
 
 function resolveFile(scope: CollectionsScope): string {
-  return scope ? userDataFile(scope.userId, 'collections') : CONTENT_FILE;
+  if (!scope) return CONTENT_FILE;
+  return 'userId' in scope
+    ? userDataFile(scope.userId, 'collections')
+    : workspaceDataFile(scope.workspaceId, 'collections');
 }
 
 /** Read and validate all collections from disk (memoized by file mtime). */

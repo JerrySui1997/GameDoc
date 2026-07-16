@@ -38,9 +38,9 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { ALL_NIGHTMARES, getNightmareById } from '@/data/nightmares';
-import { parseBody, blocksToPlainText, isWidgetBlock, serializeBlocks, parseLegend, type WidgetBlock } from '@/lib/docs/blocks';
-import { asScene, serializeScene, makeAnnotation, TILE_ROLES, type HexelScene, type Annotation, type Vec3 } from '@/lib/hexel/types';
-import { describeSpace, toOBJ, toPlanes, toSceneJSON } from '@/lib/hexel/scene';
+import { parseBody, blocksToPlainText, isWidgetBlock, serializeBlocks, parseLegend, makeBlockId, type WidgetBlock } from '@/lib/docs/blocks';
+import { asScene, seedScene, serializeScene, makeAnnotation, makeTile, makeCell, clampBounds, TILE_ROLES, BOUNDS_MIN, BOUNDS_MAX, type HexelScene, type Annotation, type PaletteTile, type TileRole, type Vec3 } from '@/lib/hexel/types';
+import { describeSequence, describeSpace, toOBJ, toPlanes, toSceneJSON } from '@/lib/hexel/scene';
 import { buildDocTree, ancestorIds, DocNodeSchema, DocCollectionSchema, type DocNode, type DocTreeNode } from '@/lib/schema/doc';
 import { writeJsonFile } from '@/lib/store/json';
 import { GLOSSARY, EVIDENCE_TYPES, GLINT_VARIANTS, TEMP_VARIANTS, RELIABILITY_VALUES, PERSONALITY_VALUES, HUNT_READ_VALUES, HAUNT_READ_VALUES, STATE_VALUES, TOOLKIT } from '@/lib/schema/vocabulary';
@@ -323,7 +323,76 @@ export function exportScene(scene: HexelScene, format: 'obj' | 'planes'): string
   return format === 'obj' ? toOBJ(toPlanes(scene)) : JSON.stringify(toSceneJSON(scene));
 }
 
-export { describeSpace, makeAnnotation };
+export { describeSequence };
+
+/** Input for gamedoc_create_space: an initial palette (referenced by label,
+ *  not minted id — the agent shouldn't need to know id-minting) and cells
+ *  painted against it. Omitting both falls back to the same seedScene() a
+ *  fresh widget insert in the editor uses, so "just give me a map" works. */
+export type CreateSpaceInput = {
+  title?: string;
+  subtitle?: string;
+  bounds?: Vec3;
+  tiles?: { label: string; role: TileRole; color?: string; glyph?: string }[];
+  cells?: { x: number; y: number; z: number; tile: string }[];
+  locationName?: string;
+  locationNotes?: string;
+};
+
+/** Build a fresh hexelMap widget block from create-space input. Returns any
+ *  cell tile labels that didn't match a given tile so the caller can reject
+ *  the call cleanly instead of silently dropping paint. */
+export function buildHexelSpace(
+  blockId: string,
+  input: CreateSpaceInput,
+): { block: WidgetBlock; scene: HexelScene; unknownTiles: string[] } {
+  if (!input.tiles && !input.cells) {
+    const scene = {
+      ...seedScene(),
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
+      ...(input.bounds ? { bounds: clampBounds(input.bounds) } : {}),
+      ...(input.locationName !== undefined || input.locationNotes !== undefined
+        ? { location: { name: input.locationName ?? '', notes: input.locationNotes ?? '' } }
+        : {}),
+    };
+    return { block: { id: blockId, type: 'hexelMap', props: { dataJson: serializeScene(scene) } }, scene, unknownTiles: [] };
+  }
+
+  const palette: PaletteTile[] = (input.tiles ?? []).map((t, i) => {
+    const tile = makeTile(i, t.role);
+    return { ...tile, label: t.label, color: t.color ?? tile.color, glyph: t.glyph ?? '' };
+  });
+  const byLabel = new Map(palette.map((p) => [p.label, p.id]));
+  const unknownTiles: string[] = [];
+  const cells = (input.cells ?? []).flatMap((c) => {
+    const tileId = byLabel.get(c.tile);
+    if (!tileId) { unknownTiles.push(c.tile); return []; }
+    return [makeCell(c.x, c.y, c.z, tileId)];
+  });
+
+  const scene: HexelScene = {
+    title: input.title ?? 'Hexel Map',
+    subtitle: input.subtitle ?? '',
+    bounds: clampBounds(input.bounds ?? { x: 24, y: 24, z: 8 }),
+    palette,
+    cells,
+    annotations: [],
+    sequence: [],
+    location: { name: input.locationName ?? '', notes: input.locationNotes ?? '' },
+    defaultRot: 0,
+  };
+  return { block: { id: blockId, type: 'hexelMap', props: { dataJson: serializeScene(scene) } }, scene, unknownTiles };
+}
+
+/** Append a new widget block to a doc's existing body (prose and any other
+ *  blocks pass through untouched — same shape as momentScaffold's block-list
+ *  building, just appending instead of replacing wholesale). */
+export function insertBlock(body: string, block: WidgetBlock): string {
+  return serializeBlocks([...parseBody(body), block], parseLegend(body));
+}
+
+export { describeSpace, makeAnnotation, makeBlockId, BOUNDS_MIN, BOUNDS_MAX, TILE_ROLES };
 export type { HexelScene, Annotation, Vec3 };
 
 // ── Vocabulary bundle (single object for the vocabulary tool) ───────────────
