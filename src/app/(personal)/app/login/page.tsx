@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
+import { isRedirectError } from 'next/dist/client/components/redirect-error';
 import { auth, signIn } from '@/auth';
+import { EmailLoginForm, type EmailState } from './EmailLoginForm';
 
 // Force dynamic for the same reason as the legacy (site)/login page: auth()
 // reads cookies, so this must never be statically prerendered at build time.
@@ -10,17 +12,13 @@ export default async function PersonalLoginPage({
 }: {
   searchParams: Promise<{ next?: string }>;
 }) {
-  const { next } = await searchParams;
-  // Only ever hand the OAuth/email flow a safe same-origin relative path —
-  // never an arbitrary open redirect from the query string. This is the one
-  // shared login page for both /app/* and the main site, so a bare "/app"
-  // prefix check is too narrow; any path is fine as long as it can't escape
-  // the origin (no "//..." and no "scheme://...").
-  const isSafeNext = !!next && next.startsWith('/') && !next.startsWith('//') && !next.includes('://');
-  const redirectTo = isSafeNext ? next : '/app';
-
   const session = await auth();
-  if (session?.user) redirect(redirectTo);
+  if (session?.user) redirect('/app');
+
+  const { next } = await searchParams;
+  // Only ever hand the OAuth/email flow a same-space redirect target — never an
+  // arbitrary open redirect from the query string.
+  const redirectTo = next && next.startsWith('/app') ? next : '/app';
 
   async function withGoogle() {
     'use server';
@@ -32,11 +30,33 @@ export default async function PersonalLoginPage({
     await signIn('github', { redirectTo });
   }
 
-  async function withEmail(formData: FormData) {
+  async function withEmail(prevState: EmailState, formData: FormData): Promise<EmailState> {
     'use server';
     const email = String(formData.get('email') || '').trim();
-    if (!email) return;
-    await signIn('nodemailer', { email, redirectTo });
+    if (!email) {
+      return { status: 'error', message: 'Enter your email address to continue.' };
+    }
+    try {
+      // signIn throws a NEXT_REDIRECT to drive the verify-request navigation;
+      // re-throw it so the framework completes the redirect instead of
+      // collapsing it into the catch's generic error message.
+      await signIn('nodemailer', { email, redirectTo });
+    } catch (err) {
+      if (isRedirectError(err)) throw err;
+      // Configuration / dispatch failure (e.g. missing secret, no EMAIL_SERVER
+      // in production). Surface a concise generic message — never the raw
+      // cause, which may include server-internal details.
+      return {
+        status: 'error',
+        message: 'Could not send a sign-in link. If this keeps happening, contact the site owner.',
+      };
+    }
+    // Reached only when signIn resolved without a redirect (defensive): treat
+    // as success since Auth.js has accepted the magic-link dispatch.
+    return {
+      status: 'sent',
+      message: 'Check your inbox for a sign-in link.',
+    };
   }
 
   return (
@@ -44,8 +64,10 @@ export default async function PersonalLoginPage({
       <div className="w-full max-w-sm space-y-6 rounded-2xl border border-line bg-surface p-8 shadow-sm">
         <div>
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-brass">Game Design</p>
-          <h1 className="mt-1 text-2xl font-bold text-ink">Sign in</h1>
-          <p className="mt-2 text-sm text-muted">Sign in to continue to your workspace.</p>
+          <h1 className="mt-1 text-2xl font-bold text-ink">Sign in to your workspace</h1>
+          <p className="mt-2 text-sm text-muted">
+            A private space for your own docs, collections, and templates — separate from the main site.
+          </p>
         </div>
 
         <div className="space-y-2.5">
@@ -73,21 +95,7 @@ export default async function PersonalLoginPage({
           <div className="h-px flex-1 bg-line" />
         </div>
 
-        <form action={withEmail} className="space-y-2.5">
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="you@example.com"
-            className="w-full rounded-lg border border-line bg-canvas px-3 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-brass focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink/90"
-          >
-            Continue with email
-          </button>
-        </form>
+        <EmailLoginForm action={withEmail} />
 
         <p className="text-xs text-muted">
           Blocked in mainland China? Google and GitHub are both behind the Great Firewall — use email sign-in instead.
