@@ -22,6 +22,7 @@ import * as Y from 'yjs';
 import { LeveldbPersistence } from 'y-leveldb';
 import { getToken } from 'next-auth/jwt';
 import { readDocs, writeDocs, type DocsScope } from '@/lib/docs/store';
+import { canAccess } from '@/lib/workspaces/access';
 import {
   blocksAreEffectivelyEmpty,
   isYDocEffectivelyEmpty,
@@ -33,7 +34,7 @@ import {
   ySetTitle,
 } from '@/lib/docs/ydoc';
 import { parseBody } from '@/lib/docs/blocks';
-import { AUTH_COOKIE, authEnabled, parseCookies, safeEqual, sessionToken } from '@/lib/auth/session';
+import { safeEqual } from '@/lib/auth/session';
 import { enqueue } from '@/lib/store/json';
 
 // Store the LevelDB outside the project root so Turbopack's directory scanner
@@ -47,20 +48,28 @@ export function collabDbDir(): string {
 }
 
 // ── Room name → store scope ─────────────────────────────────────────────────
-// A personal space's rooms are named `user:{userId}:{docId}`; every other
-// room name is a legacy (owner) doc id, unchanged. DocNodeSchema's id regex
-// (^[a-z0-9]+(?:-[a-z0-9]+)*$) structurally forbids colons, and Auth.js's
-// default user ids are colon-free UUIDs, so this split is unambiguous — a
-// legacy id can never be misread as a personal room or vice versa.
-const ROOM_RE = /^user:([^:]+):(.+)$/;
+// Three room-name shapes (plans/06-multi-workspace-dashboard.md Phase 3): a
+// personal space is `user:{userId}:{docId}`; a custom workspace is
+// `ws:{workspaceId}:{docId}`; every other room name is the legacy/flagship
+// (owner) doc id, unchanged. DocNodeSchema's id regex
+// (^[a-z0-9]+(?:-[a-z0-9]+)*$) structurally forbids colons, and both user ids
+// and workspace ids (Auth.js UUIDs, or crypto.randomUUID() for custom
+// workspaces) are colon-free, so all three cases are unambiguous.
+const PERSONAL_ROOM_RE = /^user:([^:]+):(.+)$/;
+const WORKSPACE_ROOM_RE = /^ws:([^:]+):(.+)$/;
 
-function parseRoom(roomName: string): { docId: string; userId?: string } {
-  const m = ROOM_RE.exec(roomName);
-  return m ? { docId: m[2], userId: m[1] } : { docId: roomName };
+function parseRoom(roomName: string): { docId: string; userId?: string; workspaceId?: string } {
+  const personal = PERSONAL_ROOM_RE.exec(roomName);
+  if (personal) return { docId: personal[2], userId: personal[1] };
+  const custom = WORKSPACE_ROOM_RE.exec(roomName);
+  if (custom) return { docId: custom[2], workspaceId: custom[1] };
+  return { docId: roomName };
 }
 
-function storeScope(userId: string | undefined): DocsScope {
-  return userId ? { userId } : undefined;
+function storeScope(parsed: { userId?: string; workspaceId?: string }): DocsScope {
+  if (parsed.userId) return { userId: parsed.userId };
+  if (parsed.workspaceId) return { workspaceId: parsed.workspaceId };
+  return undefined;
 }
 
 // ── content.json write-back, serialized per scope ──────────────────────────
@@ -82,9 +91,15 @@ function persistToContentJson(roomName: string, doc: Y.Doc): void {
       pendingTimers.delete(roomName);
       const body = serializeYDoc(doc);
       const title = readTitle(doc);
-      const { docId, userId } = parseRoom(roomName);
-      const scope = storeScope(userId);
-      void enqueue(userId ? `user:${userId}` : 'legacy', async () => {
+      const parsed = parseRoom(roomName);
+      const { docId } = parsed;
+      const scope = storeScope(parsed);
+      const queueKey = parsed.userId
+        ? `user:${parsed.userId}`
+        : parsed.workspaceId
+          ? `ws:${parsed.workspaceId}`
+          : 'legacy';
+      void enqueue(queueKey, async () => {
         try {
           const docs = await readDocs(scope);
           const idx = docs.findIndex((d) => d.id === docId);
@@ -131,16 +146,16 @@ function installCollabPersistence(): void {
       // when room and store already agree.
       if (isYDocEmpty(ydoc)) {
         try {
-          const { docId, userId } = parseRoom(docName);
-          const node = (await readDocs(storeScope(userId))).find((d) => d.id === docId);
+          const parsed = parseRoom(docName);
+          const node = (await readDocs(storeScope(parsed))).find((d) => d.id === parsed.docId);
           if (node) seedYDoc(ydoc, node.body, node.title);
         } catch (err) {
           console.error(`[collab] seed failed for "${docName}":`, err);
         }
       } else if (isYDocEffectivelyEmpty(ydoc)) {
         try {
-          const { docId, userId } = parseRoom(docName);
-          const node = (await readDocs(storeScope(userId))).find((d) => d.id === docId);
+          const parsed = parseRoom(docName);
+          const node = (await readDocs(storeScope(parsed))).find((d) => d.id === parsed.docId);
           const target = node ? parseBody(node.body) : [];
           if (!blocksAreEffectivelyEmpty(target)) {
             ydoc.transact(() => {
@@ -207,68 +222,19 @@ export function attachCollab(server: Server, opts: { path?: string } = {}): void
     // (req.url.slice(1).split('?')[0]) — done here too so the gate can branch
     // on whether this is a personal-space room before accepting the upgrade.
     const roomName = (req.url || '/').slice(1).split('?')[0];
-    const { userId } = parseRoom(roomName);
+    const { userId, workspaceId } = parseRoom(roomName);
 
-    if (userId) {
-      // Personal-space room — gated by an Auth.js session regardless of the
-      // legacy SITE_PASSWORD switch, and the session's own user id must match
-      // the room's {userId} exactly. Without that second check, any signed-in
-      // user could open ANY other user's room just by guessing/observing its
-      // id — this comparison is the entire cross-user isolation boundary for
-      // live collab.
-      void (async () => {
-        try {
-          // Best-effort HTTPS detection so the cookie name/salt we look up
-          // matches what Auth.js used when it set the session (the
-          // __Secure- prefix + secure flag depend on it). Prefer the
-          // x-forwarded-proto a reverse proxy (Railway) sets; NODE_ENV is a
-          // fallback for direct/local connections. Getting this wrong fails
-          // closed (getToken returns null, not a false accept) — but verify
-          // it against a real HTTPS deploy, not just local HTTP.
-          const forwardedProto = req.headers['x-forwarded-proto'];
-          const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
-          const secureCookie = proto ? proto === 'https' : process.env.NODE_ENV === 'production';
-
-          const token = await getToken({
-            req: { headers: req.headers as unknown as Record<string, string> },
-            secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
-            secureCookie,
-          });
-          if (token?.sub === userId) {
-            accept();
-          } else {
-            reject();
-          }
-        } catch (err) {
-          // Fail closed either way, but never silently — this gate is the
-          // entire cross-user isolation boundary, so a bug that makes it
-          // throw (e.g. a missing GAMEDOC_ACCOUNTS_SECRET) must be visible,
-          // not indistinguishable from a routine rejection.
-          console.error(`[collab] auth gate error for room "${roomName}":`, err);
-          socket.destroy();
-        }
-      })();
-      return;
-    }
-
-    // Legacy room — unchanged from before personal spaces existed. Same
-    // site-password gate as the HTTP surfaces. Same-origin browsers send the
-    // gd_session cookie on the WS handshake, so live editing needs the
-    // password too. Only enforced when the gate is on (SITE_PASSWORD set), so
-    // the standalone dev relay stays open.
-    if (!authEnabled()) {
-      accept();
-      return;
-    }
     // Cross-origin clients (a localhost dev browser pointed at the live relay,
-    // scripts, proxies) can never present the same-origin gd_session cookie.
+    // scripts, proxies) can never present the same-origin session cookie.
     // Accept the shared agent secret instead — as an Authorization header
     // where the client can set one, or as an ?agent= query param since
     // browsers can't set headers on a WS handshake. Same secret that gates
     // the mutation REST routes (src/lib/auth/agentToken.ts); no-op when
-    // GAMEDOC_AGENT_TOKEN isn't configured.
+    // GAMEDOC_AGENT_TOKEN isn't configured. Legacy (flagship) rooms only —
+    // never lets a bearer-token holder into a *personal* or *custom-workspace*
+    // room, which would blow the per-room access checks below wide open.
     const agentSecret = process.env.GAMEDOC_AGENT_TOKEN;
-    if (agentSecret) {
+    if (agentSecret && !userId && !workspaceId) {
       const [scheme, bearer] = (req.headers.authorization ?? '').split(' ');
       const query = new URLSearchParams((req.url ?? '').split('?')[1] ?? '');
       if (
@@ -279,15 +245,61 @@ export function attachCollab(server: Server, opts: { path?: string } = {}): void
         return;
       }
     }
+
     void (async () => {
       try {
-        const cookies = parseCookies(req.headers.cookie);
-        if (safeEqual(cookies[AUTH_COOKIE], await sessionToken())) {
-          accept();
-        } else {
+        // Best-effort HTTPS detection so the cookie name/salt we look up
+        // matches what Auth.js used when it set the session (the
+        // __Secure- prefix + secure flag depend on it). Prefer the
+        // x-forwarded-proto a reverse proxy (Railway) sets; NODE_ENV is a
+        // fallback for direct/local connections. Getting this wrong fails
+        // closed (getToken returns null, not a false accept) — but verify
+        // it against a real HTTPS deploy, not just local HTTP.
+        const forwardedProto = req.headers['x-forwarded-proto'];
+        const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+        const secureCookie = proto ? proto === 'https' : process.env.NODE_ENV === 'production';
+
+        const token = await getToken({
+          req: { headers: req.headers as unknown as Record<string, string> },
+          secret: process.env.GAMEDOC_ACCOUNTS_SECRET,
+          secureCookie,
+        });
+
+        if (!token?.sub) {
           reject();
+          return;
         }
-      } catch {
+
+        // Personal-space room: the session's own user id must match the
+        // room's {userId} exactly. Without that check, any signed-in user
+        // could open ANY other user's room just by guessing/observing its id
+        // — this comparison is the entire cross-user isolation boundary for
+        // live collab.
+        if (userId && token.sub !== userId) {
+          reject();
+          return;
+        }
+        // Custom workspace room: real membership check (owner or a resolved
+        // editor/viewer row) — this is the first room kind with a live
+        // canAccess() gate, since it has no pre-existing sessions to avoid
+        // regressing. Legacy (flagship) rooms deliberately still accept any
+        // signed-in session rather than canAccess(userId, 'flagship') here:
+        // tightening that requires confirming the flagship workspace row
+        // (plans/06 Phase 2.2) actually exists and is owned correctly in
+        // every deployed environment first, or every editor — including the
+        // real owner — locks out until it's seeded. Flip this once that's
+        // confirmed in production; tracked in plans/06 Phase 3's QA notes.
+        if (workspaceId && !(await canAccess(token.sub, workspaceId, 'viewer'))) {
+          reject();
+          return;
+        }
+        accept();
+      } catch (err) {
+        // Fail closed either way, but never silently — this gate is the
+        // entire cross-user isolation boundary, so a bug that makes it throw
+        // (e.g. a missing GAMEDOC_ACCOUNTS_SECRET) must be visible, not
+        // indistinguishable from a routine rejection.
+        console.error(`[collab] auth gate error for room "${roomName}":`, err);
         socket.destroy();
       }
     })();

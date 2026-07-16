@@ -3,17 +3,32 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DocsTree } from '@/components/docs/DocsTree';
+import { ProfileMenu } from '@/components/ProfileMenu';
 
 // Background utilities — not primary content, so they live in a quiet footer
 // rather than the main tree. Collections feeds the "Collection" field on
 // specialized pages; Nightmare is the legacy hardcoded tool.
 const UTILITY_LINKS = [
+  { href: '/dashboard', label: 'All projects' },
   { href: '/collections', label: 'Collections' },
   { href: '/boards', label: 'Reference Boards' },
   { href: '/nightmare', label: 'Nightmare (legacy)' },
 ];
 
-export function SidebarNav({ showLogout = false }: { showLogout?: boolean }) {
+export function SidebarNav({
+  name,
+  email,
+  image,
+  onLogout,
+}: {
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  /** Server action (from src/app/(site)/layout.tsx) bound to signOut() —
+   *  passed in rather than imported here since this is a Client Component and
+   *  next-auth's signOut() must run server-side. */
+  onLogout: () => void;
+}) {
   const pathname = usePathname();
 
   return (
@@ -48,16 +63,9 @@ export function SidebarNav({ showLogout = false }: { showLogout?: boolean }) {
             })}
           </nav>
 
-          {showLogout && (
-            <form action="/api/logout" method="post" className="mt-4 border-t border-line-soft pt-3">
-              <button
-                type="submit"
-                className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-muted transition-colors hover:bg-canvas hover:text-oxblood"
-              >
-                Log out
-              </button>
-            </form>
-          )}
+          <div className="mt-4 border-t border-line-soft pt-3">
+            <ProfileMenu name={name} email={email} image={image} onLogout={onLogout} />
+          </div>
         </div>
       </div>
     </aside>

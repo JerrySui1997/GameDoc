@@ -75,7 +75,12 @@ export default async function PersonalLayout({ children }: { children: React.Rea
           <TemplatesProvider initialTemplates={templates} apiBase="/api/app/templates">
             <DocsProvider initialDocs={docsLite} apiBase="/api/app/docs" enableAgentStream={false}>
               <div className="min-h-screen lg:grid lg:grid-cols-[280px_1fr]">
-                <PersonalSidebarNav userLabel={session.user.email ?? session.user.name ?? 'Account'} onLogout={logout} />
+                <PersonalSidebarNav
+                  name={session.user.name}
+                  email={session.user.email}
+                  image={session.user.image}
+                  onLogout={logout}
+                />
                 <main className="bg-surface px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
               </div>
             </DocsProvider>

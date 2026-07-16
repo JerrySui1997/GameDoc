@@ -17,17 +17,14 @@
  * shadowed rooms immediately, without waiting on a deploy.
  *
  * Auth: REST reads use GAMEDOC_AGENT_TOKEN (Bearer). The collab WebSocket
- * doesn't accept that token yet on the currently-deployed relay (that ships
- * with PR #20), so this logs into SITE_PASSWORD to get a gd_session cookie
- * and attaches it to the WS upgrade via a `ws` subclass — cross-origin
- * scripts can't rely on a browser's same-origin cookie jar. Once the
- * agent-token WS gate is live, GAMEDOC_AGENT_TOKEN is passed as a `?agent=`
- * query param too, so this keeps working either way.
+ * accepts the same token as a `?agent=` query param (see
+ * server/collab-core.ts's agent-secret bypass) — cross-origin scripts can't
+ * rely on a browser's same-origin session cookie, so this is the only path
+ * that works here.
  *
  * Env:
  *   GAMEDOC_LIVE_URL     base URL (default https://gamedoc-production.up.railway.app)
  *   GAMEDOC_AGENT_TOKEN  Bearer token for REST + WS ?agent= param
- *   SITE_PASSWORD        shared site password, for the WS cookie fallback
  */
 import WS from 'ws';
 import * as Y from 'yjs';
@@ -45,7 +42,6 @@ import { DocCollectionSchema, type DocNode } from '../src/lib/schema/doc';
 const SITE_URL = (process.env.GAMEDOC_LIVE_URL || 'https://gamedoc-production.up.railway.app').replace(/\/$/, '');
 const COLLAB_URL = `${SITE_URL.replace(/^http/, 'ws')}/collab`;
 const AGENT_TOKEN = process.env.GAMEDOC_AGENT_TOKEN;
-const SITE_PASSWORD = process.env.SITE_PASSWORD;
 
 const args = process.argv.slice(2);
 const REPAIR = args.includes('--repair');
@@ -60,21 +56,6 @@ const SYNC_TIMEOUT_MS = 8000;
 const WRITEBACK_WAIT_MS = 2500;
 const SYNC_SETTLE_MS = 500;
 
-/** Log into the deployed site's shared password to get a gd_session cookie. */
-async function loginCookie(): Promise<string | null> {
-  if (!SITE_PASSWORD) return null;
-  const res = await fetch(`${SITE_URL}/api/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: SITE_PASSWORD }),
-  });
-  if (!res.ok) throw new Error(`login failed: ${res.status} ${await res.text().catch(() => '')}`);
-  const setCookie = res.headers.get('set-cookie');
-  const match = setCookie?.match(/gd_session=([^;]+)/);
-  if (!match) throw new Error('login succeeded but response had no gd_session cookie');
-  return `gd_session=${match[1]}`;
-}
-
 async function fetchDocs(): Promise<DocNode[]> {
   const res = await fetch(`${SITE_URL}/api/docs`, {
     headers: AGENT_TOKEN ? { Authorization: `Bearer ${AGENT_TOKEN}` } : {},
@@ -83,28 +64,16 @@ async function fetchDocs(): Promise<DocNode[]> {
   return DocCollectionSchema.parse(await res.json());
 }
 
-/** `ws`'s WebSocket takes (address, protocols, options) but WebsocketProvider
- *  always calls `new provider._WS(provider.url)` with just the URL — so the
- *  only way to attach a Cookie header is a subclass that injects it. */
-function makeCookieWS(cookie: string | null): typeof WS {
-  return class extends WS {
-    constructor(address: string | URL, protocols?: string | string[]) {
-      super(address, protocols, cookie ? { headers: { Cookie: cookie } } : undefined);
-    }
-  } as unknown as typeof WS;
-}
-
 type Finding = { id: string; title: string; roomBlocks: number; targetBlocks: number };
 
 function auditRoom(
-  wsFactory: typeof WS,
   node: DocNode,
   targetBlocks: ReturnType<typeof parseBody>,
 ): Promise<{ finding: Finding | null; repaired: boolean; error?: string }> {
   return new Promise((resolve) => {
     const doc = new Y.Doc();
     const provider = new WebsocketProvider(COLLAB_URL, node.id, doc, {
-      WebSocketPolyfill: wsFactory as unknown as typeof WebSocket,
+      WebSocketPolyfill: WS as unknown as typeof WebSocket,
       params: AGENT_TOKEN ? { agent: AGENT_TOKEN } : {},
     });
     let settled = false;
@@ -150,11 +119,9 @@ function auditRoom(
 }
 
 async function main() {
-  const cookie = await loginCookie();
-  if (!AGENT_TOKEN && !cookie) {
-    console.warn('⚠ No GAMEDOC_AGENT_TOKEN and no SITE_PASSWORD — proceeding unauthenticated (will fail if the gate is on).');
+  if (!AGENT_TOKEN) {
+    console.warn('⚠ No GAMEDOC_AGENT_TOKEN — proceeding unauthenticated (will fail against a live deploy).');
   }
-  const wsFactory = makeCookieWS(cookie);
 
   const docs = await fetchDocs();
   const candidates = docs.filter((d) => {
@@ -167,7 +134,7 @@ async function main() {
   let repairedCount = 0;
   for (const node of candidates) {
     const target = parseBody(node.body);
-    const { finding, repaired, error } = await auditRoom(wsFactory, node, target);
+    const { finding, repaired, error } = await auditRoom(node, target);
     if (error) {
       console.log(`  ${node.id.padEnd(28)} ERROR ${error}`);
       continue;
