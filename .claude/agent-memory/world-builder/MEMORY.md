@@ -1,0 +1,1 @@
+- [Money is in the Dream — tattoo/NMPD/orphanage canon](money-is-in-the-dream-canon.md) — tattoo = God's Blood serum residue (Tajanda rift-derived); Chief Elias Thorne; Adrian captain-then-fired; LIVE as page `the-porch-light` + updated `aria` origin note (2026-07-12), formal release not informal favor

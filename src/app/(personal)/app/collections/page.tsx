@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCollections } from '@/components/collections/CollectionsProvider';
 import { CollectionEditor } from '@/components/collections/CollectionEditor';
 import { COLLECTION_SOURCE_LABEL, type Collection } from '@/lib/collections/types';
@@ -8,6 +8,15 @@ import { COLLECTION_SOURCE_LABEL, type Collection } from '@/lib/collections/type
 export default function PersonalCollectionsPage() {
   const { collections } = useCollections();
   const [editing, setEditing] = useState<Collection | null>(null);
+
+  // A block's shelf can deep-link here (?open=<id>) to jump straight into that
+  // collection's editor — the "quickly view from the source page" path.
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get('open');
+    if (!openId) return;
+    const found = collections.find((c) => c.id === openId);
+    if (found) setEditing(found);
+  }, [collections]);
 
   // Re-read the live record while editing so saves elsewhere stay consistent.
   const editTarget = editing ? collections.find((c) => c.id === editing.id) ?? editing : null;

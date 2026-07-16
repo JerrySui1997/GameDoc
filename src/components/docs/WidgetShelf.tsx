@@ -7,6 +7,7 @@ import { isWidgetBlock, type DocBlock, type WidgetType } from '@/lib/docs/blocks
 import { WIDGET_LIST } from './widgets/registry';
 import { WIDGET_CATALOG } from './catalog';
 import { fieldToWidget } from './blocks/presets';
+import { momentScaffoldBlocks } from '@/lib/docs/momentScaffold';
 import type { PageTemplate, TemplateField } from '@/lib/templates/types';
 
 // The shelf: a side panel of widget tools and named "page styles" (presets,
@@ -109,6 +110,13 @@ export function WidgetShelf({
 
             <div className="space-y-1">
               <p className="px-1 font-mono text-[10px] font-semibold uppercase tracking-wide text-muted">Page styles</p>
+              <button
+                onClick={() => onInsertBlocks(momentScaffoldBlocks())}
+                title="Insert the Moment story section stack"
+                className="block w-full rounded-lg border border-line px-2.5 py-1.5 text-left text-xs font-medium text-ink hover:border-brass hover:bg-brass-soft"
+              >
+                ⊞ Moment story
+              </button>
               {templates.length === 0 && <p className="px-1 text-[11px] text-muted">No styles yet — build a page and save it as one.</p>}
               {templates.map((t) => (
                 <button

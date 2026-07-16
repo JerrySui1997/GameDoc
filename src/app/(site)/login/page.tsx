@@ -1,16 +1,15 @@
-import { LoginForm } from './LoginForm';
+import { redirect } from 'next/navigation';
 
-// Force dynamic so this route is never statically prerendered with the app shell
-// at build time (when the gate is off, the layout would otherwise bake the
-// sidebar's doc tree into a static /login). At runtime the root layout re-runs
-// its auth check per request and renders the bare shell around this form, so the
-// login screen can't leak the doc tree to logged-out visitors.
-export const dynamic = 'force-dynamic';
-
-export default function LoginPage() {
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10">
-      <LoginForm />
-    </main>
-  );
+// Retired (Plan 06 Phase 1): the shared-password login lived here before the
+// site moved to real NextAuth sessions. Kept as a redirect so old bookmarks
+// and links still land somewhere useful, since /app/login is now the one
+// login page for both the flagship site and /app/*.
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const next = typeof params.next === 'string' ? params.next : undefined;
+  redirect(next ? `/app/login?next=${encodeURIComponent(next)}` : '/app/login');
 }

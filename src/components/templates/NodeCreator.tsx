@@ -7,6 +7,12 @@ import { useTemplates } from '@/components/templates/TemplatesProvider';
 import { slugify } from '@/components/docs/inline';
 import { styleToBlocks } from '@/components/docs/blocks/presets';
 import { serializeBlocks } from '@/lib/docs/blocks';
+import { momentScaffoldBody } from '@/lib/docs/momentScaffold';
+
+// A built-in style option (alongside saved templates) that seeds the "Moment
+// story" section stack. slugify() never emits ':', so this id can't collide
+// with a user-saved template id.
+const MOMENT_STYLE_ID = 'builtin:moment';
 
 /**
  * Create a page in the tree. Every page is the same kind; an optional "style"
@@ -45,7 +51,8 @@ export function NodeCreator({
     try {
       // A chosen style seeds the body with its widget blocks; else a blank page.
       const style = styleId ? templates.find((t) => t.id === styleId) : undefined;
-      const body = style ? serializeBlocks(styleToBlocks(style)) : '';
+      const body =
+        styleId === MOMENT_STYLE_ID ? momentScaffoldBody() : style ? serializeBlocks(styleToBlocks(style)) : '';
       const created = await createDoc({ id, title: trimmed, parentId, body });
       onDone?.();
       router.push(`${basePath}/${created.id}`);
@@ -75,6 +82,7 @@ export function NodeCreator({
         className="w-full rounded-md border border-line px-2 py-1 text-xs text-muted focus:outline-none focus:ring-2 focus:ring-brass"
       >
         <option value="">Blank page</option>
+        <option value={MOMENT_STYLE_ID}>Start from Moment story</option>
         {templates.map((t) => <option key={t.id} value={t.id}>Start from {t.name}</option>)}
       </select>
       <div className="flex gap-1">

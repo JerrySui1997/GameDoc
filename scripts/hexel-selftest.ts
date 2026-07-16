@@ -33,6 +33,12 @@ import {
 } from '../src/lib/hexel/types';
 import { inferSemantics } from '../src/lib/hexel/infer';
 import { summarizeScene, toPlanes, toOBJ } from '../src/lib/hexel/scene';
+import {
+  appendSequenceStep,
+  diffCells,
+  resolveSequence,
+  updateSequenceStep,
+} from '../src/lib/hexel/sequence';
 
 let passed = 0;
 const failures: string[] = [];
@@ -155,14 +161,84 @@ const P = {
 function scn(cells: Cell[], annotations: Annotation[] = []): HexelScene {
   return {
     title: 'T', subtitle: '', bounds: { x: 32, y: 32, z: 8 },
-    palette: Object.values(P), cells, annotations,
+    palette: Object.values(P), cells, annotations, sequence: [],
     location: { name: '', notes: '' }, defaultRot: 0,
   };
 }
+
+test('sequence deltas resolve terrain changes across inherited steps', () => {
+  const base = scn(rect(0, 0, 1, 0, 0, P.floor.id));
+  const first = appendSequenceStep(base, 'Block the lane');
+  const firstState = resolveSequence(first.scene, first.index);
+  const changed = { ...firstState, cells: firstState.cells.filter((cell) => cell.x !== 1) };
+  const updatedFirst = updateSequenceStep(first.scene, first.index, changed);
+  const second = appendSequenceStep(updatedFirst, 'Open a bypass');
+  const secondState = resolveSequence(second.scene, second.index);
+  assert.equal(secondState.cells.length, 1);
+  assert.equal(diffCells(firstState.cells, changed.cells).length, 1);
+});
+
+test('later sequence overrides survive edits to an earlier step', () => {
+  const base = scn(rect(0, 0, 0, 0, 0, P.floor.id));
+  const first = appendSequenceStep(base, 'Initial state');
+  const firstState = resolveSequence(first.scene, first.index);
+  const firstChanged = { ...firstState, cells: [...firstState.cells, { x: 1, y: 0, z: 0, t: P.floor.id }] };
+  const firstUpdated = updateSequenceStep(first.scene, first.index, firstChanged);
+  const second = appendSequenceStep(firstUpdated, 'Move marker');
+  const secondState = resolveSequence(second.scene, second.index);
+  const secondChanged = {
+    ...secondState,
+    cells: secondState.cells.map((cell) => cell.x === 1 ? { ...cell, t: P.grass.id } : cell),
+  };
+  const secondUpdated = updateSequenceStep(second.scene, second.index, secondChanged);
+  const editedEarlier = updateSequenceStep(
+    secondUpdated,
+    first.index,
+    { ...firstState, cells: [{ x: 0, y: 0, z: 0, t: P.grass.id }] },
+  );
+  const resolved = resolveSequence(editedEarlier, second.index);
+  assert.equal(resolved.cells.find((cell) => cell.x === 0)?.t, P.grass.id);
+  assert.equal(resolved.cells.find((cell) => cell.x === 1)?.t, P.grass.id);
+});
+
+test('sequence metadata round-trips with camera and presentation overlays', () => {
+  const base = scn(rect(0, 0, 1, 0, 0, P.floor.id));
+  const created = appendSequenceStep(base, 'Callout');
+  created.scene.sequence[created.index].camera.floorZ = 1;
+  created.scene.sequence[created.index].overlays.push({
+    id: 'overlay-1',
+    kind: 'text',
+    points: [{ x: 0.5, y: 0.5 }],
+    color: '#b44f3b',
+    width: 3,
+    text: 'Advance',
+  });
+  const roundTrip = asScene(JSON.parse(serializeScene(created.scene)));
+  assert.equal(roundTrip.sequence[0].camera.floorZ, 1);
+  assert.equal(roundTrip.sequence[0].overlays[0].text, 'Advance');
+});
+
 function rect(x0: number, y0: number, x1: number, y1: number, z: number, t: string): Cell[] {
   const out: Cell[] = [];
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) out.push({ x, y, z, t });
   return out;
+}
+function columnsConnected(columns: string[]): boolean {
+  if (!columns.length) return false;
+  const all = new Set(columns);
+  const seen = new Set<string>([columns[0]]);
+  const queue = [columns[0]];
+  for (let head = 0; head < queue.length; head++) {
+    const [x, y] = queue[head].split(',').map(Number);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const next = `${x + dx},${y + dy}`;
+      if (all.has(next) && !seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return seen.size === all.size;
 }
 
 test('a long narrow strip is duck-typed as a corridor', () => {
@@ -243,6 +319,36 @@ test('a merge annotation fuses two regions into one space', () => {
   assert.equal(inferSemantics(scn(cells, [ann])).spaces.length, 1, 'one space after merge');
 });
 
+test('ramp tiles and route annotations preserve elevation and action flow', () => {
+  const ramp = { id: 'ramp', label: 'Ramp', color: '#c9a24b', role: 'ramp' as const, glyph: '' };
+  const floor = { id: 'floor', label: 'Floor', color: '#b9a06b', role: 'floor' as const, glyph: '' };
+  const route: Annotation = {
+    id: 'route-1', anchor: { x: 0, y: 0, z: 0 }, scope: 'route',
+    kind: 'attack', name: 'High-ground push', op: undefined, withAnchor: null,
+    links: [], notes: 'take the ramp before the objective',
+    path: [{ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 1 }, { x: 2, y: 0, z: 0 }],
+  };
+  const graph = inferSemantics({
+    title: 'route',
+    subtitle: '',
+    bounds: { x: 4, y: 2, z: 4 },
+    palette: [floor, ramp],
+    cells: [
+      { x: 0, y: 0, z: 0, t: floor.id },
+      { x: 1, y: 0, z: 0, t: floor.id },
+      { x: 1, y: 0, z: 1, t: ramp.id },
+      { x: 2, y: 0, z: 0, t: floor.id },
+    ],
+    annotations: [route],
+    location: { name: '', notes: '' },
+    sequence: [],
+    defaultRot: 0,
+  });
+  assert.equal(graph.relations.filter((r) => r.kind === 'ramp').length, 1);
+  assert.equal(graph.routes[0].points[1].z, 1);
+  assert.equal(graph.routes[0].notes, 'take the ramp before the objective');
+});
+
 test('a kind annotation overrides the guess and flips source to annotated', () => {
   const cells = rect(0, 0, 4, 0, 0, P.floor.id); // would infer corridor
   const ann: Annotation = {
@@ -252,6 +358,143 @@ test('a kind annotation overrides the guess and flips source to annotated', () =
   const g = inferSemantics(scn(cells, [ann]));
   assert.equal(g.spaces[0].kind, 'sanctum');
   assert.equal(g.spaces[0].source, 'annotated');
+});
+
+test('a split annotation uses deterministic BFS and preserves connectivity', () => {
+  const cells = rect(0, 0, 9, 4, 0, P.floor.id); // one 10×5 = 50-cell region
+  assert.equal(inferSemantics(scn(cells)).spaces.length, 1, 'one space before split');
+  const ann: Annotation = {
+    id: 'an-split', anchor: { x: 1, y: 2, z: 0 }, scope: 'space',
+    kind: undefined, name: undefined, op: 'split', withAnchor: { x: 8, y: 2, z: 0 },
+    links: [], notes: '',
+  };
+  const g = inferSemantics(scn(cells, [ann]));
+  assert.equal(g.spaces.length, 2, 'two spaces after split');
+  const total = g.spaces.reduce((n, s) => n + s.cellCount, 0);
+  assert.equal(total, 50, 'no cells lost or duplicated across the split halves');
+  assert.ok(g.spaces.every((s) => s.cellCount > 0), 'both halves are non-empty');
+  const primary = g.spaces.find((s) => s.columns.includes('1,2'));
+  const secondary = g.spaces.find((s) => s.columns.includes('8,2'));
+  assert.ok(primary && secondary && primary.id !== secondary.id, 'each anchor belongs to its own half');
+  assert.ok(columnsConnected(primary!.columns), 'primary BFS half stays connected');
+  assert.ok(columnsConnected(secondary!.columns), 'secondary BFS half stays connected');
+});
+
+test('a split annotation is a no-op when both anchors land in different regions', () => {
+  const cells = [...rect(0, 0, 1, 1, 0, P.floor.id), ...rect(5, 0, 6, 1, 0, P.floor.id)];
+  const ann: Annotation = {
+    id: 'an-split-2', anchor: { x: 0, y: 0, z: 0 }, scope: 'space',
+    kind: undefined, name: undefined, op: 'split', withAnchor: { x: 5, y: 0, z: 0 },
+    links: [], notes: '',
+  };
+  assert.equal(inferSemantics(scn(cells, [ann])).spaces.length, 2, 'already-separate regions are untouched');
+  const degenerate = { ...ann, id: 'an-split-same', withAnchor: { x: 0, y: 0, z: 0 } };
+  const unchanged = inferSemantics(scn(cells, [degenerate]));
+  assert.equal(unchanged.spaces.length, 2, 'coincident anchors are a no-op');
+});
+
+test('a feature-scoped annotation renames/re-kinds the nearest marker cluster', () => {
+  const cells = [
+    ...rect(0, 0, 4, 4, 0, P.floor.id),
+    { x: 1, y: 1, z: 1, t: P.chest.id },
+    { x: 2, y: 3, z: 1, t: P.chest.id },
+    { x: 3, y: 2, z: 1, t: P.chest.id },
+  ];
+  const ann: Annotation = {
+    id: 'an-feat', anchor: { x: 2, y: 3, z: 1 }, scope: 'feature',
+    kind: 'treasure-cache', name: 'Grand Cache', op: undefined, withAnchor: null,
+    links: [], notes: 'guarded by a pressure plate',
+  };
+  const g = inferSemantics(scn(cells, [ann]));
+  assert.equal(g.features.length, 1, 'still one clustered feature');
+  assert.equal(g.features[0].count, 3, 'the whole cluster, not just the anchored cell');
+  assert.equal(g.features[0].kind, 'treasure-cache');
+  assert.equal(g.features[0].name, 'Grand Cache');
+  assert.equal(g.features[0].notes, 'guarded by a pressure plate');
+  assert.equal(g.features[0].source, 'annotated');
+  assert.notEqual(g.spaces[0].name, 'Grand Cache', 'feature scope must not rename its space');
+});
+
+test('feature annotations do not retarget a distant unrelated marker', () => {
+  const orb: PaletteTile = { id: 't-orb', label: 'Orb', color: '#fff', role: 'marker', glyph: '○' };
+  const cells = [
+    ...rect(0, 0, 6, 6, 0, P.floor.id),
+    { x: 1, y: 1, z: 1, t: P.chest.id },
+    { x: 5, y: 5, z: 1, t: orb.id },
+  ];
+  const ann: Annotation = {
+    id: 'an-feature-miss', anchor: { x: 3, y: 3, z: 0 }, scope: 'feature',
+    kind: 'wrong-target', name: 'Wrong Target', op: undefined, withAnchor: null, links: [], notes: '',
+  };
+  const g = inferSemantics({
+    ...scn(cells, [ann]),
+    palette: [...Object.values(P), orb],
+  });
+  assert.equal(g.features.find((f) => f.kind === 'chest')?.name, 'Chest');
+  assert.equal(g.features.find((f) => f.kind === 'orb')?.name, 'Orb');
+});
+
+test('a suppress annotation on scope:feature removes the feature entirely', () => {
+  const cells = [
+    ...rect(0, 0, 4, 4, 0, P.floor.id),
+    { x: 1, y: 1, z: 1, t: P.chest.id },
+  ];
+  const ann: Annotation = {
+    id: 'an-feat-sup', anchor: { x: 1, y: 1, z: 1 }, scope: 'feature',
+    kind: undefined, name: undefined, op: 'suppress', withAnchor: null, links: [], notes: '',
+  };
+  const g = inferSemantics(scn(cells, [ann]));
+  assert.equal(g.features.length, 0, 'the false-positive feature is gone');
+  assert.ok(g.spaces[0].featureIds.length === 0, 'the space no longer references it');
+});
+
+test('Annotation.notes on a space annotation surfaces on the SpaceNode and flips source', () => {
+  const cells = rect(0, 0, 4, 4, 0, P.floor.id);
+  const ann: Annotation = {
+    id: 'an-notes', anchor: { x: 0, y: 0, z: 0 }, scope: 'space',
+    kind: undefined, name: undefined, op: undefined, withAnchor: null,
+    links: [], notes: 'the floor here is trapped',
+  };
+  const ann2: Annotation = {
+    id: 'an-notes-2', anchor: { x: 1, y: 1, z: 0 }, scope: 'space',
+    kind: undefined, name: undefined, op: undefined, withAnchor: null,
+    links: [], notes: 'the west wall is unsafe',
+  };
+  const g = inferSemantics(scn(cells, [ann, ann2]));
+  assert.equal(g.spaces[0].notes, 'the floor here is trapped\nthe west wall is unsafe');
+  assert.equal(g.spaces[0].source, 'annotated');
+});
+
+test('relation annotations apply metadata without losing relation suppression', () => {
+  const cells = [
+    ...rect(0, 0, 2, 2, 0, P.floor.id),
+    ...rect(4, 0, 6, 2, 0, P.floor.id),
+    { x: 3, y: 0, z: 1, t: P.wall.id },
+    { x: 3, y: 2, z: 1, t: P.wall.id },
+    { x: 3, y: 1, z: 1, t: P.door.id },
+  ];
+  const ann: Annotation = {
+    id: 'an-relation', anchor: { x: 3, y: 1, z: 0 }, scope: 'relation',
+    kind: 'boss-door', name: 'Boss Lock', op: 'confirm', withAnchor: null,
+    links: ['boss'], notes: 'requires the red key',
+  };
+  const followUp: Annotation = {
+    ...ann, id: 'an-relation-follow-up', kind: undefined, name: undefined,
+    op: undefined, links: [], notes: 'check twice',
+  };
+  const g = inferSemantics(scn(cells, [ann, followUp]));
+  assert.equal(g.relations.length, 1);
+  assert.equal(g.relations[0].kind, 'boss-door');
+  assert.equal(g.relations[0].name, 'Boss Lock');
+  assert.equal(g.relations[0].confidence, 1);
+  assert.deepEqual(g.relations[0].links, ['boss']);
+  assert.equal(g.relations[0].notes, 'requires the red key\ncheck twice');
+  assert.equal(g.spaces.every((s) => s.name !== 'Boss Lock'), true, 'relation scope must not touch spaces');
+
+  const suppressed = inferSemantics(scn(cells, [{
+    ...ann, id: 'an-relation-suppress', op: 'suppress', name: undefined, kind: undefined,
+  }]));
+  assert.equal(suppressed.relations.length, 0, 'relation suppress remains supported');
 });
 
 // ── scene.ts (export + summary) ──────────────────────────────────────────────
@@ -273,6 +516,49 @@ test('summarizeScene yields searchable, kind-aware text', () => {
   const s = summarizeScene(JSON.stringify(seedScene()));
   assert.ok(s.length > 0, 'non-empty');
   assert.match(s, /spaces|garden|room|chest/i);
+});
+
+test('summarizeScene surfaces a pinned space note in the digest', () => {
+  const cells = rect(0, 0, 4, 4, 0, P.floor.id);
+  const ann: Annotation = {
+    id: 'an-sum-notes', anchor: { x: 0, y: 0, z: 0 }, scope: 'space',
+    kind: undefined, name: undefined, op: undefined, withAnchor: null,
+    links: [], notes: 'watch the patrol timing here',
+  };
+  const s = summarizeScene(JSON.stringify(scn(cells, [ann])));
+  assert.match(s, /watch the patrol timing here/, 'the digest should include the designer note');
+});
+
+test('summarizeScene includes space, feature, and relation notes', () => {
+  const cells = [
+    ...rect(0, 0, 2, 2, 0, P.floor.id),
+    ...rect(4, 0, 6, 2, 0, P.floor.id),
+    { x: 1, y: 1, z: 1, t: P.chest.id },
+    { x: 3, y: 0, z: 1, t: P.wall.id },
+    { x: 3, y: 2, z: 1, t: P.wall.id },
+    { x: 3, y: 1, z: 1, t: P.door.id },
+  ];
+  const annotations: Annotation[] = [
+    {
+      id: 'an-summary-space', anchor: { x: 0, y: 0, z: 0 }, scope: 'space',
+      kind: undefined, name: undefined, op: undefined, withAnchor: null, links: [],
+      notes: 'space note',
+    },
+    {
+      id: 'an-summary-feature', anchor: { x: 1, y: 1, z: 1 }, scope: 'feature',
+      kind: undefined, name: undefined, op: undefined, withAnchor: null, links: [],
+      notes: 'feature note',
+    },
+    {
+      id: 'an-summary-relation', anchor: { x: 3, y: 1, z: 0 }, scope: 'relation',
+      kind: undefined, name: undefined, op: undefined, withAnchor: null, links: [],
+      notes: 'relation note',
+    },
+  ];
+  const summary = summarizeScene(JSON.stringify(scn(cells, annotations)));
+  assert.match(summary, /space note/);
+  assert.match(summary, /feature note/);
+  assert.match(summary, /relation note/);
 });
 
 // ── report ─────────────────────────────────────────────────────────────────

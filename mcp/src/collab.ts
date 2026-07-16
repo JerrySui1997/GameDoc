@@ -61,8 +61,17 @@ export type CollabPatch = { title?: string; body?: string };
 
 function connect(collabUrl: string, docId: string): { doc: InstanceType<typeof Y.Doc>; provider: InstanceType<typeof WebsocketProvider> } {
   const doc = new Y.Doc();
+  // Node can't set a WS handshake header the way a browser client can't
+  // either, so this relies on the same query-param fallback collab-core.ts's
+  // upgrade gate accepts for cross-origin/script clients (?agent=<secret>) —
+  // required against any real deploy now that every room needs a signed-in
+  // session or this agent secret (no more "gate is off" fallback). No-op
+  // (empty params) when GAMEDOC_AGENT_TOKEN isn't set, matching remoteFetch's
+  // same no-op behavior for the REST side.
+  const agentToken = process.env.GAMEDOC_AGENT_TOKEN;
   const provider = new WebsocketProvider(collabUrl, docId, doc, {
     WebSocketPolyfill: WS as unknown as typeof WebSocket,
+    params: agentToken ? { agent: agentToken } : {},
   });
   return { doc, provider };
 }

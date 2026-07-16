@@ -43,6 +43,8 @@ export type SpaceNode = {
   materials: Record<string, number>;
   featureIds: string[];
   links: string[];
+  /** Designer notes from pinned annotations, joined in annotation order. */
+  notes: string;
   source: Source;
 };
 
@@ -55,18 +57,34 @@ export type FeatureNode = {
   at: Vec3;
   spaceId: string | null;
   links: string[];
+  /** Designer notes from pinned annotations, joined in annotation order. */
+  notes: string;
   source: Source;
 };
 
 export type RelationNode = {
   id: string;
   kind: string;
+  name: string;
   from: string;
   to: string;
   viaSpaceId: string | null;
   at: Vec3 | null;
   confidence: number;
   why: string;
+  links: string[];
+  /** Designer notes from pinned annotations, joined in annotation order. */
+  notes: string;
+  source: Source;
+};
+
+export type MovementRoute = {
+  id: string;
+  name: string;
+  kind: string;
+  points: Vec3[];
+  links: string[];
+  notes: string;
   source: Source;
 };
 
@@ -74,16 +92,18 @@ export type SemanticGraph = {
   spaces: SpaceNode[];
   features: FeatureNode[];
   relations: RelationNode[];
+  routes: MovementRoute[];
   adjacency: [string, string][];
 };
 
 // ── Ground model (2D projection of the paint) ───────────────────────────────
 
-type Ground = 'floor' | 'water' | 'door' | 'wall' | 'marker' | 'empty';
+type Ground = 'floor' | 'water' | 'door' | 'ramp' | 'wall' | 'marker' | 'empty';
 
 const ROLE_PRIORITY: Record<Exclude<Ground, 'empty'>, number> = {
   wall: 5,
   door: 4,
+  ramp: 3,
   water: 3,
   floor: 2,
   marker: 1,
@@ -127,7 +147,7 @@ function buildPlane(scene: HexelScene): Plane {
   return { ground, column };
 }
 
-const isWalkable = (g: Ground | undefined): boolean => g === 'floor' || g === 'water';
+const isWalkable = (g: Ground | undefined): boolean => g === 'floor' || g === 'water' || g === 'ramp';
 
 // ── Segmentation (connected components of walkable columns) ──────────────────
 
@@ -221,7 +241,7 @@ function materialsOf(region: Region, scene: HexelScene, plane: Plane): Record<st
     for (const cell of plane.column.get(planeKey(c.x, c.y)) ?? []) {
       const tile = tileById(scene, cell.t);
       const role = effectiveRole(tile, cell.z);
-      if (role === 'floor' || role === 'water') {
+      if (role === 'floor' || role === 'water' || role === 'ramp') {
         const label = tile?.label ?? 'Unknown';
         out[label] = (out[label] ?? 0) + 1;
       }
@@ -305,6 +325,43 @@ function regionAt(anchor: Vec3, keyToRegion: Map<string, number>): number | null
   return idx === undefined ? null : idx;
 }
 
+function regionFromKeys(keys: Iterable<string>): Region {
+  const sorted = [...keys].sort((a, b) => {
+    const [ax, ay] = a.split(',').map(Number);
+    const [bx, by] = b.split(',').map(Number);
+    return ay - by || ax - bx;
+  });
+  return {
+    id: '',
+    keys: new Set(sorted),
+    cells: sorted.map((key) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y };
+    }),
+  };
+}
+
+/** Breadth-first distances over the region's existing walkable-column graph. */
+function bfsDistances(start: string, region: Region): Map<string, number> {
+  const distances = new Map<string, number>();
+  if (!region.keys.has(start)) return distances;
+  const queue = [start];
+  distances.set(start, 0);
+  let head = 0;
+  while (head < queue.length) {
+    const current = queue[head++];
+    const [x, y] = current.split(',').map(Number);
+    const distance = distances.get(current)! + 1;
+    for (const [dx, dy] of N4) {
+      const next = planeKey(x + dx, y + dy);
+      if (!region.keys.has(next) || distances.has(next)) continue;
+      distances.set(next, distance);
+      queue.push(next);
+    }
+  }
+  return distances;
+}
+
 // ── Main entry ───────────────────────────────────────────────────────────────
 
 export function inferSemantics(scene: HexelScene): SemanticGraph {
@@ -316,7 +373,9 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
   regions.forEach((r, i) => r.keys.forEach((k) => keyToRegion.set(k, i)));
 
   // Apply `merge` annotations at the region level, before classification.
-  const merges = scene.annotations.filter((a) => a.op === 'merge' && a.withAnchor);
+  const merges = scene.annotations.filter(
+    (a) => a.scope === 'space' && a.op === 'merge' && a.withAnchor,
+  );
   if (merges.length) {
     const dsu = new DSU();
     for (const a of merges) {
@@ -336,6 +395,43 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
       }
     });
     regions = [...grouped.values()];
+    keyToRegion.clear();
+    regions.forEach((r, i) => r.keys.forEach((k) => keyToRegion.set(k, i)));
+  }
+
+  // Apply `split` annotations before classification. Each split is a
+  // deterministic two-source BFS over the region's existing 4-neighbour
+  // walkable-column graph. Every column joins the nearer source by graph
+  // distance; equal distances go to the primary `anchor`. Both anchors must
+  // be in the same region, and degenerate partitions are no-ops. Splits are
+  // processed in annotation order, rebuilding the region index after each one.
+  const splits = scene.annotations.filter(
+    (a) => a.scope === 'space' && a.op === 'split' && a.withAnchor,
+  );
+  for (const a of splits) {
+    const ri = regionAt(a.anchor, keyToRegion);
+    const rj = a.withAnchor ? regionAt(a.withAnchor, keyToRegion) : null;
+    if (ri === null || rj === null || ri !== rj) continue; // only splits within a single region
+    const region = regions[ri];
+    const primaryKey = planeKey(a.anchor.x, a.anchor.y);
+    const secondaryKey = planeKey(a.withAnchor!.x, a.withAnchor!.y);
+    if (primaryKey === secondaryKey) continue;
+    const primaryDistances = bfsDistances(primaryKey, region);
+    const secondaryDistances = bfsDistances(secondaryKey, region);
+    if (!primaryDistances.size || !secondaryDistances.size) continue;
+
+    const primary = new Set<string>();
+    const secondary = new Set<string>();
+    for (const key of region.keys) {
+      const primaryDistance = primaryDistances.get(key);
+      const secondaryDistance = secondaryDistances.get(key);
+      if (primaryDistance === undefined || secondaryDistance === undefined) continue;
+      if (primaryDistance <= secondaryDistance) primary.add(key);
+      else secondary.add(key);
+    }
+    if (!primary.size || !secondary.size) continue;
+    regions[ri] = regionFromKeys(primary);
+    regions.push(regionFromKeys(secondary));
     keyToRegion.clear();
     regions.forEach((r, i) => r.keys.forEach((k) => keyToRegion.set(k, i)));
   }
@@ -363,6 +459,7 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
       materials,
       featureIds: [],
       links: [],
+      notes: '',
       source: 'inferred' as Source,
     };
   });
@@ -381,6 +478,7 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
 
   // Features: marker cells grouped by (region, tile) → one feature with a count.
   const featureGroups = new Map<string, FeatureNode>();
+  const featureCoordinates = new Map<string, Set<string>>();
   for (const cell of scene.cells) {
     const tile = tileById(scene, cell.t);
     if (effectiveRole(tile, cell.z) !== 'marker') continue;
@@ -391,8 +489,9 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
     const existing = featureGroups.get(gkey);
     if (existing) {
       existing.count += 1;
+      featureCoordinates.get(existing.id)?.add(planeKey(cell.x, cell.y));
     } else {
-      featureGroups.set(gkey, {
+      const feature: FeatureNode = {
         id: `ft:${cell.x}:${cell.y}:${cell.z}`,
         seed: { x: cell.x, y: cell.y, z: cell.z },
         kind,
@@ -401,8 +500,11 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
         at: { x: cell.x, y: cell.y, z: cell.z },
         spaceId: space?.id ?? null,
         links: [],
+        notes: '',
         source: 'inferred',
-      });
+      };
+      featureGroups.set(gkey, feature);
+      featureCoordinates.set(feature.id, new Set([planeKey(cell.x, cell.y)]));
     }
   }
   const features = [...featureGroups.values()];
@@ -428,6 +530,7 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
       const ri = keyToRegion.get(planeKey(x + dx, y + dy));
       if (ri !== undefined) touch.add(ri);
     }
+
     const ids = [...touch];
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
@@ -438,17 +541,45 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
           relations.push({
             id: `rel:${x}:${y}`,
             kind: 'door',
+            name: '',
             from: a.id,
             to: b.id,
             viaSpaceId: null,
             at: { x, y, z: 0 },
             confidence: 0.85,
             why: 'door between two spaces',
+            links: [],
+            notes: '',
             source: 'inferred',
           });
         }
       }
+
     }
+  }
+
+  // A ramp is an explicit vertical transition even though the current space
+  // segmentation remains a 2D walkable-plane model. Keep it as a relation so
+  // routes and downstream tools can reason about elevation without guessing.
+  for (const cell of scene.cells) {
+    if (tileById(scene, cell.t)?.role !== 'ramp') continue;
+    const ri = keyToRegion.get(planeKey(cell.x, cell.y));
+    const space = ri === undefined ? null : spaceByRegion.get(ri) ?? null;
+    if (!space) continue;
+    relations.push({
+      id: `rel:ramp:${cell.x}:${cell.y}:${cell.z}`,
+      kind: 'ramp',
+      name: tileById(scene, cell.t)?.label ?? 'Ramp',
+      from: space.id,
+      to: space.id,
+      viaSpaceId: null,
+      at: { x: cell.x, y: cell.y, z: cell.z },
+      confidence: 1,
+      why: `explicit ramp tile at elevation z=${cell.z}`,
+      links: [],
+      notes: '',
+      source: 'inferred',
+    });
   }
 
   // "via corridor": a corridor that doors onto exactly two spaces links them.
@@ -461,12 +592,15 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
       relations.push({
         id: `rel:via:${corridor.id}`,
         kind: 'connects',
+        name: '',
         from: others[0],
         to: others[1],
         viaSpaceId: corridor.id,
         at: null,
         confidence: 0.7,
         why: `linked through ${corridor.name}`,
+        links: [],
+        notes: '',
         source: 'inferred',
       });
     }
@@ -487,15 +621,39 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
     if (best) a.parentId = best.id;
   }
 
-  // Apply remaining annotations (name / kind / confirm / links on spaces;
-  // suppress on relations) — these override inference and mark the source.
+  // Apply remaining annotations by scope. Relation annotations with
+  // `at: null` (the inferred via-corridor relation) remain intentionally
+  // unreachable because annotations are anchored to painted coordinates.
   for (const ann of scene.annotations) {
-    if (ann.op === 'merge') continue; // already applied
-    if (ann.scope === 'relation' && ann.op === 'suppress') {
-      const idx = relations.findIndex(
+    if (ann.op === 'merge' || ann.op === 'split') continue; // already applied
+    if (ann.scope === 'relation') {
+      const matches = relations.filter(
         (r) => r.at && r.at.x === ann.anchor.x && r.at.y === ann.anchor.y,
       );
-      if (idx >= 0) relations.splice(idx, 1);
+      if (ann.op === 'suppress') {
+        for (const relation of matches) {
+          const idx = relations.indexOf(relation);
+          if (idx >= 0) relations.splice(idx, 1);
+        }
+      } else {
+        for (const relation of matches) applyAnnotationToRelation(relation, ann);
+      }
+      continue;
+    }
+    if (ann.scope === 'route') continue;
+    if (ann.scope === 'feature') {
+      const f = findFeature(ann.anchor, features, featureCoordinates, keyToRegion, spaces);
+      if (!f) continue;
+      if (ann.op === 'suppress') {
+        const idx = features.indexOf(f);
+        if (idx >= 0) features.splice(idx, 1);
+        if (f.spaceId) {
+          const sp = spaces.find((s) => s.id === f.spaceId);
+          if (sp) sp.featureIds = sp.featureIds.filter((id) => id !== f.id);
+        }
+        continue;
+      }
+      applyAnnotationToFeature(f, ann);
       continue;
     }
     const ri = regionAt(ann.anchor, keyToRegion);
@@ -504,12 +662,55 @@ export function inferSemantics(scene: HexelScene): SemanticGraph {
     applyAnnotationToSpace(sp, ann);
   }
 
+  const routes: MovementRoute[] = scene.annotations
+    .filter((ann) => ann.scope === 'route' && (ann.path?.length ?? 0) >= 2)
+    .map((ann) => ({
+      id: `route:${ann.id}`,
+      name: ann.name || 'Movement Route',
+      kind: ann.kind || 'movement',
+      points: (ann.path ?? []).map((point) => ({ ...point })),
+      links: [...ann.links],
+      notes: ann.notes,
+      source: 'annotated' as Source,
+    }));
+
   return {
     spaces,
     features,
     relations,
+    routes,
     adjacency: [...adjacencySet].map((k) => k.split('|') as [string, string]),
   };
+}
+
+/** Resolve a feature by an exact marker column first. A short, unique
+ * same-space fallback keeps legacy anchors usable without retargeting a
+ * distant or unrelated marker. */
+function findFeature(
+  anchor: Vec3,
+  features: FeatureNode[],
+  featureCoordinates: Map<string, Set<string>>,
+  keyToRegion: Map<string, number>,
+  spaces: SpaceNode[],
+): FeatureNode | null {
+  const exact = features.filter((f) => featureCoordinates.get(f.id)?.has(planeKey(anchor.x, anchor.y)));
+  if (exact.length) {
+    const zExact = exact.find((f) => f.at.z === anchor.z);
+    return zExact ?? exact[0];
+  }
+
+  const regionIndex = keyToRegion.get(planeKey(anchor.x, anchor.y));
+  const spaceId = regionIndex === undefined ? null : spaces[regionIndex]?.id ?? null;
+  const nearby = features
+    .filter((f) => f.spaceId === spaceId)
+    .map((f) => ({
+      feature: f,
+      distance: Math.abs(f.at.x - anchor.x) + Math.abs(f.at.y - anchor.y),
+    }))
+    .filter((candidate) => candidate.distance <= 1)
+    .sort((a, b) => a.distance - b.distance);
+  if (!nearby.length || (nearby.length > 1 && nearby[0].distance === nearby[1].distance)) return null;
+  return nearby[0].feature;
 }
 
 function applyAnnotationToSpace(sp: SpaceNode, ann: Annotation): void {
@@ -517,4 +718,25 @@ function applyAnnotationToSpace(sp: SpaceNode, ann: Annotation): void {
   if (ann.name) { sp.name = ann.name; sp.source = 'annotated'; }
   if (ann.op === 'confirm') { sp.confidence = 1; sp.source = 'annotated'; }
   if (ann.links.length) { sp.links = [...new Set([...sp.links, ...ann.links])]; sp.source = 'annotated'; }
+  if (ann.notes.trim()) { sp.notes = appendNote(sp.notes, ann.notes); sp.source = 'annotated'; }
+}
+
+function applyAnnotationToFeature(f: FeatureNode, ann: Annotation): void {
+  if (ann.kind) { f.kind = ann.kind; f.source = 'annotated'; }
+  if (ann.name) { f.name = ann.name; f.source = 'annotated'; }
+  if (ann.op === 'confirm') { f.source = 'annotated'; }
+  if (ann.links.length) { f.links = [...new Set([...f.links, ...ann.links])]; f.source = 'annotated'; }
+  if (ann.notes.trim()) { f.notes = appendNote(f.notes, ann.notes); f.source = 'annotated'; }
+}
+
+function applyAnnotationToRelation(r: RelationNode, ann: Annotation): void {
+  if (ann.kind) { r.kind = ann.kind; r.source = 'annotated'; }
+  if (ann.name) { r.name = ann.name; r.source = 'annotated'; }
+  if (ann.op === 'confirm') { r.confidence = 1; r.source = 'annotated'; }
+  if (ann.links.length) { r.links = [...new Set([...r.links, ...ann.links])]; r.source = 'annotated'; }
+  if (ann.notes.trim()) { r.notes = appendNote(r.notes, ann.notes); r.source = 'annotated'; }
+}
+
+function appendNote(existing: string, next: string): string {
+  return existing ? `${existing}\n${next}` : next;
 }

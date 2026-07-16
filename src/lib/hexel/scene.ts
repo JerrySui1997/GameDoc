@@ -7,6 +7,7 @@
 
 import { asScene, cellKey, tileById, type HexelScene, type Vec3 } from './types';
 import { inferSemantics, type SemanticGraph } from './infer';
+import { resolveSequence } from './sequence';
 
 // ── Describe (for the LLM / MCP / overlay) ───────────────────────────────────
 
@@ -39,11 +40,17 @@ export function summarizeScene(dataJson: unknown): string {
   if (!g.spaces.length && !scene.location.name) return '';
 
   const featBySpace = new Map<string, string[]>();
+  const looseFeatures: string[] = [];
   for (const f of g.features) {
-    if (!f.spaceId) continue;
-    const arr = featBySpace.get(f.spaceId) ?? [];
-    arr.push(f.count > 1 ? `${f.count}× ${f.kind}` : f.kind);
-    featBySpace.set(f.spaceId, arr);
+    const label = f.count > 1 ? `${f.count}× ${f.kind}` : f.kind;
+    const described = f.notes ? `${label} (Note: ${f.notes})` : label;
+    if (!f.spaceId) {
+      looseFeatures.push(described);
+    } else {
+      const arr = featBySpace.get(f.spaceId) ?? [];
+      arr.push(described);
+      featBySpace.set(f.spaceId, arr);
+    }
   }
 
   const parts: string[] = [];
@@ -54,18 +61,33 @@ export function summarizeScene(dataJson: unknown): string {
   for (const s of g.spaces.slice(0, 8)) {
     const held = featBySpace.get(s.id);
     const tail = held && held.length ? ` holds ${held.join(', ')}` : '';
-    parts.push(`${s.name} (${s.kind}, ${s.cellCount} cells)${tail}.`);
+    const note = s.notes ? ` Note: ${s.notes}` : '';
+    parts.push(`${s.name} (${s.kind}, ${s.cellCount} cells)${tail}.${note}`);
   }
+  for (const feature of looseFeatures) parts.push(`Feature: ${feature}.`);
 
   const byId = new Map(g.spaces.map((s) => [s.id, s.name]));
-  for (const r of g.relations.filter((r) => r.kind === 'connects' || r.viaSpaceId)) {
+  for (const r of g.relations) {
     const via = r.viaSpaceId ? ` via ${byId.get(r.viaSpaceId) ?? 'a space'}` : '';
-    parts.push(`${byId.get(r.from) ?? '?'} connects to ${byId.get(r.to) ?? '?'}${via}.`);
+    const relationLabel = r.name || r.kind;
+    const relationText = relationLabel === 'connects'
+      ? 'connects to'
+      : `${relationLabel} to`;
+    const note = r.notes ? ` Note: ${r.notes}` : '';
+    parts.push(`${byId.get(r.from) ?? '?'} ${relationText} ${byId.get(r.to) ?? '?'}${via}.${note}`);
+  }
+  for (const route of g.routes) {
+    const note = route.notes ? ` Note: ${route.notes}` : '';
+    parts.push(`Route ${route.name} (${route.kind}, ${route.points.length} points).${note}`);
+  }
+  for (const step of scene.sequence.slice(0, 12)) {
+    const narration = step.narration ? ` ${step.narration}` : '';
+    parts.push(`Step ${step.title || step.id}: ${step.cellChanges.length} terrain changes, ${step.annotationChanges.length} annotation changes, ${step.overlays.length} overlays.${narration}`);
   }
 
   const pinned = g.spaces.filter((s) => s.source === 'annotated').length;
   parts.push(
-    `${g.spaces.length} spaces, ${g.features.length} features, ${g.relations.length} relations` +
+    `${g.spaces.length} spaces, ${g.features.length} features, ${g.relations.length} relations, ${g.routes.length} routes` +
       (pinned ? ` (${pinned} pinned).` : '.'),
   );
   return parts.join(' ');
@@ -127,6 +149,50 @@ export function toSceneJSON(scene: HexelScene): {
   title: string;
   bounds: HexelScene['bounds'];
   planes: ScenePlane[];
+  routes: ReturnType<typeof inferSemantics>['routes'];
+  ramps: ReturnType<typeof inferSemantics>['relations'];
+  sequence: ReturnType<typeof describeSequence>;
 } {
-  return { title: scene.title, bounds: scene.bounds, planes: toPlanes(scene) };
+  const graph = inferSemantics(scene);
+  return {
+    title: scene.title,
+    bounds: scene.bounds,
+    planes: toPlanes(scene),
+    routes: graph.routes,
+    ramps: graph.relations.filter((relation) => relation.kind === 'ramp'),
+    sequence: describeSequence(scene),
+  };
+}
+
+export function describeSequence(scene: HexelScene): Array<{
+  index: number;
+  id: string;
+  title: string;
+  narration: string;
+  durationMs: number | null;
+  changes: { cells: number; annotations: number; overlays: number };
+  camera: HexelScene['sequence'][number]['camera'];
+  layers: HexelScene['sequence'][number]['layers'];
+  overlays: HexelScene['sequence'][number]['overlays'];
+  resolved: { cells: number; annotations: number };
+}> {
+  return scene.sequence.map((step, index) => {
+    const resolved = resolveSequence(scene, index);
+    return {
+      index,
+      id: step.id,
+      title: step.title,
+      narration: step.narration,
+      durationMs: step.durationMs,
+      changes: {
+        cells: step.cellChanges.length,
+        annotations: step.annotationChanges.length,
+        overlays: step.overlays.length,
+      },
+      camera: step.camera,
+      layers: step.layers,
+      overlays: step.overlays,
+      resolved: { cells: resolved.cells.length, annotations: resolved.annotations.length },
+    };
+  });
 }

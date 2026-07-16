@@ -16,6 +16,7 @@ export function LiveEditor({
   docId,
   roomId,
   onLive,
+  onReadyChange,
   onChildPagesWidgetChange,
 }: {
   docId: string;
@@ -24,6 +25,11 @@ export function LiveEditor({
    *  (see server/collab-core.ts's parseRoom). */
   roomId?: string;
   onLive?: () => void;
+  /** Reports whether this editor currently has real content to show (room synced,
+   *  or the pooled Y.Doc already carries blocks) — see DocView's failsafe, which
+   *  must not swap away from a good static paint onto this editor's own empty/
+   *  loading state. */
+  onReadyChange?: (ready: boolean) => void;
   /** Forwarded to PageEditor — see its own doc for why DocView needs this live. */
   onChildPagesWidgetChange?: (has: boolean) => void;
 }) {
@@ -53,15 +59,17 @@ export function LiveEditor({
   // first content flips it even before the provider's `synced` flag settles.
   useEffect(() => {
     const c = collab;
-    if (!c || !onLive) return;
+    if (!c) { onReadyChange?.(false); return; }
     const fireIfReady = () => {
-      if (c.synced || !isYDocEmpty(c.doc)) { onLive(); return true; }
-      return false;
+      const ready = c.synced || !isYDocEmpty(c.doc);
+      onReadyChange?.(ready);
+      if (ready) onLive?.();
+      return ready;
     };
     if (fireIfReady()) return;
     c.doc.on('update', fireIfReady);
     return () => c.doc.off('update', fireIfReady);
-  }, [collab, onLive]);
+  }, [collab, onLive, onReadyChange]);
 
   function onTitle(value: string) {
     setTitle(value);
@@ -88,7 +96,7 @@ export function LiveEditor({
         value={title}
         onChange={(e) => onTitle(e.target.value)}
         placeholder="Untitled"
-        className="w-full border-none bg-transparent text-4xl font-bold tracking-tight text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
+        className="w-full border-none bg-transparent text-4xl leading-snug font-bold tracking-tight text-ink placeholder:text-muted/55 focus:outline-none focus:ring-0"
       />
 
       {collab ? (

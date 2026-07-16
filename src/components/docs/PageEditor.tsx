@@ -56,10 +56,12 @@ import {
   type PageLegend,
 } from '@/lib/docs/legend';
 import { detectCandidates, type CollectionCandidate } from '@/lib/collections/detect';
-import { findMentionQuery } from '@/lib/docs/mentions';
+import type { Collection } from '@/lib/collections/types';
+import { extractMentionIds, findMentionQuery } from '@/lib/docs/mentions';
 import { splitInline, toggleInlineMark, type InlineSegment, type InlineMark } from '@/lib/docs/inlineFormat';
 import { buildMentionIndex, type MentionTarget } from '@/lib/docs/mentionTarget';
-import { CollectionTagOverlay } from '@/components/collections/CollectionTagOverlay';
+import { CollectionShelfControl } from '@/components/collections/CollectionShelfControl';
+import { useCollections } from '@/components/collections/CollectionsProvider';
 import { useDocs } from './DocsProvider';
 import { WidgetHost, WIDGET_LIST, makeWidgetBlock } from './widgets/registry';
 import { WidgetShelf } from './WidgetShelf';
@@ -67,7 +69,30 @@ import { PROSE_CATALOG, WIDGET_CATALOG } from './catalog';
 import type { Awareness } from './useYDoc';
 import type { Identity } from './identity';
 import { RemoteBlockBadges, RemoteBlockAccent, userField, type RemoteUser } from './Presence';
-import { MentionChip, MentionPanel, MentionMenu, mentionRank, inlineMentionClass, inlineMarkClass } from './Mentions';
+import {
+  MentionChip,
+  MentionPanel,
+  MentionMenu,
+  mentionRank,
+  ReferenceLegend,
+  inlineMentionClass,
+  inlineMarkClass,
+  type ReferenceKind,
+} from './Mentions';
+import {
+  PROSE_CLASS,
+  WIDTH_CLASS,
+  ALIGN_SELF,
+  computeOrdinals,
+  computeListInfo,
+  blockSpacing,
+  Divider,
+  QuoteFrame,
+  BeatFrame,
+  MarkerColumn,
+  ColorFrame,
+  markSpanClass,
+} from './blockChrome';
 import type { ReactNode } from 'react';
 
 // ── The page editor ──────────────────────────────────────────────────────────
@@ -119,34 +144,6 @@ const PROSE_MENU: { type: ProseType; title: string; terms: string[] }[] = [
 
 type SlashItem = { key: string; title: string; subtitle: string; blurb: string; icon: ReactNode; preview: ReactNode; run: () => void };
 
-const PROSE_CLASS: Record<ProseType, string> = {
-  paragraph: 'text-[15px] leading-relaxed text-ink',
-  heading1: 'text-3xl font-bold tracking-tight text-ink',
-  heading2: 'text-2xl font-bold tracking-tight text-ink',
-  heading3: 'text-xl font-semibold text-ink',
-  bullet: 'text-[15px] leading-relaxed text-ink',
-  numbered: 'text-[15px] leading-relaxed text-ink',
-  quote: 'text-lg leading-relaxed font-medium italic text-muted',
-  code: 'font-mono text-sm leading-relaxed text-ink bg-canvas rounded-md px-3 py-2',
-  divider: '',
-  beat: 'text-xs font-semibold uppercase tracking-wide text-muted',
-};
-
-// Literal Tailwind width classes per layout fraction (Tailwind v4 only emits
-// classes it sees in source, so these must be literal — never `w-[${x}]`). Each
-// fraction subtracts the row gap (0.75rem) so any combination of widths fits one
-// flex-wrap row beside its neighbours; below `sm` everything stacks full-width.
-const WIDTH_CLASS: Record<BlockWidth, string> = {
-  full: 'w-full',
-  twothirds: 'w-full sm:w-[calc(66.667%-0.75rem)]',
-  half: 'w-full sm:w-[calc(50%-0.75rem)]',
-  third: 'w-full sm:w-[calc(33.333%-0.75rem)]',
-};
-const ALIGN_SELF: Record<BlockAlign, string> = {
-  top: 'self-start',
-  center: 'self-center',
-  bottom: 'self-end',
-};
 const WIDTH_GLYPH: Record<BlockWidth, string> = { full: 'Full', twothirds: '⅔', half: '½', third: '⅓' };
 const ALIGN_GLYPH: Record<BlockAlign, string> = { top: '⤒', center: '≡', bottom: '⤓' };
 
@@ -221,6 +218,8 @@ export function PageEditor({
   const blocksRef = useRef<DocBlock[]>(blocks);
   blocksRef.current = blocks;
 
+  const { collections } = useCollections();
+
   useEffect(() => {
     const order = getOrder(doc);
     const yBlocks = getBlocks(doc);
@@ -279,6 +278,21 @@ export function PageEditor({
   // The mention whose detail panel is currently sliding in (null = closed).
   const [openMentionId, setOpenMentionId] = useState<string | null>(null);
 
+  // The kinds of things this page's prose references — the derived, read-only
+  // reference legend shown at the top of the page whenever mentions exist.
+  // Code blocks are skipped to match chip rendering (they never draw chips).
+  const referencedKinds = useMemo(() => {
+    const kinds = new Set<ReferenceKind>();
+    for (const block of blocks) {
+      if (isWidgetBlock(block) || block.type === 'code') continue;
+      for (const id of extractMentionIds(block.text)) {
+        const target = mentionTargets.get(id);
+        kinds.add(target ? target.kind : 'missing');
+      }
+    }
+    return kinds;
+  }, [blocks, mentionTargets]);
+
   // Whole-block multi-selection (Notion-style): the inclusive contiguous range of
   // blocks between `anchorId` and `focusId` in render order. Native text selection
   // can't cross two <textarea>s, so this powers copy/cut/delete across list items.
@@ -299,7 +313,6 @@ export function PageEditor({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropAt, setDropAt] = useState<{ id: string; pos: DropPos } | null>(null);
 
-  const wrapRef = useRef<HTMLDivElement>(null);
   const taRefs = useRef(new Map<string, HTMLTextAreaElement>());
   const focusReq = useRef<{ id: string; caret: number } | null>(null);
   const lastFocusedId = useRef<string | null>(null);
@@ -424,46 +437,8 @@ export function PageEditor({
     [blocks, docId],
   );
 
-  // Auto-numbered markers. `numbered` list items count within a contiguous run
-  // (reset by any other block type). `beat` markers count across the whole page
-  // instead — never reset — since they number a story's full sequence of moments,
-  // not a run; the two types are mutually exclusive so one map serves both.
-  const ordinals = useMemo(() => {
-    const map = new Map<string, number>();
-    let run = 0;
-    let beatN = 0;
-    for (const b of displayBlocks) {
-      if (!isWidgetBlock(b) && b.type === 'numbered') {
-        run += 1;
-        map.set(b.id, run);
-      } else {
-        run = 0;
-      }
-      if (!isWidgetBlock(b) && b.type === 'beat') {
-        beatN += 1;
-        map.set(b.id, beatN);
-      }
-    }
-    return map;
-  }, [displayBlocks]);
-
-  // List-run membership: for each block in a contiguous run of list items (bullet
-  // or numbered, mixed runs allowed), whether it is the first / last of its run.
-  // Drives tight inter-item spacing so a run reads as one list. A lone list item
-  // is a run of length 1 (first && last).
-  const listInfo = useMemo(() => {
-    const map = new Map<string, { first: boolean; last: boolean }>();
-    for (let i = 0; i < displayBlocks.length; i++) {
-      const b = displayBlocks[i];
-      if (isWidgetBlock(b) || !isListType(b.type)) continue;
-      const prev = displayBlocks[i - 1];
-      const next = displayBlocks[i + 1];
-      const first = !prev || isWidgetBlock(prev) || !isListType(prev.type);
-      const last = !next || isWidgetBlock(next) || !isListType(next.type);
-      map.set(b.id, { first, last });
-    }
-    return map;
-  }, [displayBlocks]);
+  const ordinals = useMemo(() => computeOrdinals(displayBlocks), [displayBlocks]);
+  const listInfo = useMemo(() => computeListInfo(displayBlocks), [displayBlocks]);
 
   // The set of block ids covered by the current whole-block selection, resolved
   // against render order. Empty when there's no selection or its endpoints have
@@ -1062,9 +1037,19 @@ export function PageEditor({
   // yields `undefined` and the shelf hides itself.
   const activeBlock = activeId && activeId !== TRAILER_ID ? blocks.find((b) => b.id === activeId) : undefined;
 
+  // Collection state for the shelf's "Collection" action — a not-yet-captured
+  // candidate anchored to this exact block, or a collection already captured
+  // from it. Resolved here (not inside the shelf) so BlockShelf can decide
+  // whether to render the divider next to it.
+  const activeCandidate = activeBlock ? candidates.find((c) => c.anchorBlockId === activeBlock.id) : undefined;
+  const activeLinkedCollection = activeBlock && docId
+    ? collections.find((c) => c.sourceDocId === docId && c.sourceBlockId === activeBlock.id)
+    : undefined;
+
   return (
     <div className="flex gap-4" onKeyDown={handleHistoryKey}>
       <div className="min-w-0 flex-1">
+        <ReferenceLegend kinds={referencedKinds} />
         <LegendBar
           legend={legend}
           onAdd={addLegendEntry}
@@ -1079,15 +1064,14 @@ export function PageEditor({
             ↷ Redo
           </button>
         </div>
-        <div className="relative">
-        <div ref={wrapRef} className="flex flex-wrap items-start gap-x-3">
+        <div className="flex flex-wrap items-start gap-x-3">
           {displayBlocks.map((block) => {
             const isTrailer = block.id === TRAILER_ID;
             const layout = (!isTrailer && block.layout) || DEFAULT_LAYOUT;
             // List items sit tight (no internal vertical padding); the run keeps
             // normal padding only at its outer (first/last) edges.
             const li = listInfo.get(block.id);
-            const spacing = li ? `${li.first ? 'pt-0.5' : 'pt-0'} ${li.last ? 'pb-0.5' : 'pb-0'}` : 'py-0.5';
+            const spacing = blockSpacing(li);
             const selected = selectedIds.size >= 2 && selectedIds.has(block.id);
             // Prose blocks (not dividers/beats) can be tagged with a legend colour;
             // the resolved entry (if its id still exists in the legend) tints them.
@@ -1118,21 +1102,21 @@ export function PageEditor({
                   }`}
                 />
               )}
-              {/* Drag grip — only on the active or hovered block, so there's a clear
-                  handle without the old always-on gutter. Drop beside a block to
-                  form a column; drop above/below to stack. */}
+              {/* Drag grip — sits in a permanent left gutter (see pl-6 below) so it
+                  never overlaps text, whether or not it's currently visible. Only
+                  its opacity changes on hover/active; the reserved space doesn't. */}
               {!isTrailer && (
                 <div
                   draggable
                   onDragStart={(e) => onGripDragStart(e, block.id)}
                   onDragEnd={endDrag}
                   title="Drag to move — drop beside a block to form a column"
-                  className={`absolute left-0 top-0 z-10 flex h-5 w-4 cursor-grab items-center justify-center rounded-br-md bg-surface/85 text-[12px] leading-none text-muted shadow-sm ring-1 ring-line transition-opacity hover:text-ink active:cursor-grabbing ${
+                  className={`absolute left-0 top-0.5 z-10 flex h-5 w-5 cursor-grab items-center justify-center rounded-md text-[12px] leading-none text-muted transition-opacity hover:bg-surface hover:text-ink hover:shadow-sm hover:ring-1 hover:ring-line active:cursor-grabbing ${
                     activeId === block.id || dragId === block.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                   }`}
                 >⠿</div>
               )}
-              <div className="relative min-w-0">
+              <div className="relative min-w-0 pl-6">
                 {remoteByBlock.get(block.id)?.length ? (
                   <>
                     <RemoteBlockAccent color={remoteByBlock.get(block.id)![0].color} />
@@ -1194,8 +1178,6 @@ export function PageEditor({
             </div>
           )}
         </div>
-        {docId && <CollectionTagOverlay wrapRef={wrapRef} candidates={candidates} docId={docId} />}
-        </div>
       </div>
       <WidgetShelf blocks={blocks} onInsertWidget={insertWidget} onInsertBlocks={insertBlocks} />
       {activeBlock && selectedIds.size < 2 && (
@@ -1204,6 +1186,9 @@ export function PageEditor({
           index={blocks.findIndex((b) => b.id === activeBlock.id)}
           total={blocks.length}
           legend={legend}
+          docId={docId}
+          collectionCandidate={activeCandidate}
+          linkedCollection={activeLinkedCollection}
           onMove={(dir) => moveBlock(activeBlock.id, dir)}
           onLayout={(patch) => setBlockLayout(activeBlock.id, patch)}
           onColor={(id) => setBlockColor(activeBlock.id, id)}
@@ -1310,7 +1295,7 @@ function ProseView({
   }, [block.text, block.type]);
 
   if (block.type === 'divider') {
-    return <hr className="my-3 border-t border-line" />;
+    return <Divider />;
   }
 
   const marker =
@@ -1396,34 +1381,15 @@ function ProseView({
   );
 
   if (block.type === 'quote') {
-    return <div className="my-1 rounded-r-lg border-l-4 border-brass bg-canvas py-2 pl-4 pr-3">{field}</div>;
+    return <QuoteFrame>{field}</QuoteFrame>;
   }
   if (block.type === 'beat') {
-    return (
-      <div className="my-4 flex items-center gap-3">
-        <span className="h-px flex-1 bg-line" aria-hidden />
-        <span className="flex shrink-0 items-center gap-2">
-          <span
-            className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full border border-brass px-1 font-mono text-[11px] font-semibold tabular-nums text-brass"
-            aria-hidden
-          >
-            {ordinal ?? 1}
-          </span>
-          <div className="min-w-0 max-w-[16rem]">{field}</div>
-        </span>
-        <span className="h-px flex-1 bg-line" aria-hidden />
-      </div>
-    );
+    return <BeatFrame ordinal={ordinal ?? 1}>{field}</BeatFrame>;
   }
   if (marker) {
     // Fixed-width, right-aligned, tabular marker column so `1.`–`99.` and `•` all
     // share one text left-edge and consecutive items line up.
-    return (
-      <div className="flex gap-2">
-        <span className="w-6 flex-shrink-0 select-none pt-0.5 text-right text-[15px] leading-relaxed tabular-nums text-brass">{marker}</span>
-        <div className="min-w-0 flex-1">{field}</div>
-      </div>
-    );
+    return <MarkerColumn marker={marker}>{field}</MarkerColumn>;
   }
   return field;
 }
@@ -1506,18 +1472,6 @@ function MentionReadLayer({ mode, segments, typography, mentionIndex, onOpenMent
       )}
     </div>
   );
-}
-
-/** A mark's *resolved* (chip/read-mode) appearance — real font-weight/style/
- *  monospace styling, safe once the block isn't a live-edited textarea
- *  anymore. Composable: a segment can carry more than one mark. */
-function markSpanClass(marks: InlineMark[]): string {
-  if (!marks.length) return '';
-  const cls: string[] = [];
-  if (marks.includes('bold')) cls.push('font-semibold');
-  if (marks.includes('italic')) cls.push('italic');
-  if (marks.includes('code')) cls.push('rounded bg-canvas px-1 py-0.5 font-mono text-[0.9em] text-brass');
-  return cls.join(' ');
 }
 
 // ── Selection format toolbar ─────────────────────────────────────────────────
@@ -1694,12 +1648,17 @@ function adjustCaret(oldVal: string, newVal: string, caret: number): number {
 // the old per-block hover gutter: explicit Move ▲▼ buttons are far more reliable
 // than drag-to-reorder, and a single persistent bar never flickers on hover.
 
-function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, onDelete, onClose }: {
+function BlockShelf({ block, index, total, legend, docId, collectionCandidate, linkedCollection, onMove, onLayout, onColor, onDelete, onClose }: {
   block: DocBlock;
   /** The block's index in the real (non-trailer) order — bounds the move arrows. */
   index: number;
   total: number;
   legend: PageLegend;
+  docId?: string;
+  /** Set when this exact block anchors an auto-detected, not-yet-captured collection. */
+  collectionCandidate?: CollectionCandidate;
+  /** Set when this exact block already backs a saved collection. */
+  linkedCollection?: Collection;
   onMove: (dir: -1 | 1) => void;
   onLayout: (patch: Partial<BlockLayout>) => void;
   onColor: (id: string | null) => void;
@@ -1774,6 +1733,12 @@ function BlockShelf({ block, index, total, legend, onMove, onLayout, onColor, on
             </div>
           </>
         )}
+        {docId && (collectionCandidate || linkedCollection) && (
+          <>
+            {rule}
+            <CollectionShelfControl docId={docId} blockId={block.id} candidate={collectionCandidate} linked={linkedCollection} />
+          </>
+        )}
         {rule}
         <button type="button" className={`${icon} flex-shrink-0 hover:bg-oxblood-soft hover:text-oxblood`} title="Delete block" onClick={onDelete}>✕</button>
         <button type="button" className={`${icon} flex-shrink-0`} title="Close" onClick={onClose}>⌄</button>
@@ -1788,20 +1753,6 @@ function blockMeta(block: DocBlock): { icon: ReactNode; label: string } {
     return { icon: WIDGET_CATALOG[block.type].icon, label: WIDGET_LIST.find((w) => w.type === block.type)?.title ?? 'Widget' };
   }
   return { icon: PROSE_CATALOG[block.type].icon, label: PROSE_MENU.find((p) => p.type === block.type)?.title ?? 'Block' };
-}
-
-// ── Legend-colour frame (tinted rail around a tagged prose block) ────────────
-// Mirrors the small-widget look (a colored left rail + faint wash) so a tagged
-// paragraph reads as kin to the field widgets. No tag → children pass through.
-function ColorFrame({ color, children }: { color?: LegendColor; children: ReactNode }) {
-  if (!color) return <>{children}</>;
-  const st = LEGEND_STYLE[color];
-  return (
-    <div className={`relative rounded-lg py-1 pl-3.5 pr-2 ${st.tint}`}>
-      <span className={`pointer-events-none absolute inset-y-1 left-0 w-1 rounded-r ${st.bar}`} aria-hidden />
-      {children}
-    </div>
-  );
 }
 
 /** The block-level colour picker: choose one legend entry (or clear the tag). */

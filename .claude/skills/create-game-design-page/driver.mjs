@@ -73,6 +73,7 @@ export function compileBody(blocks) {
     else if ('code' in b) out.push(prose('code', b.code));
     else if ('bullet' in b) out.push(prose('bullet', b.bullet));
     else if ('numbered' in b) out.push(prose('numbered', b.numbered));
+    else if ('beat' in b) out.push(prose('beat', b.beat));
     else if ('ul' in b) for (const t of b.ul) out.push(prose('bullet', t));
     else if ('ol' in b) for (const t of b.ol) out.push(prose('numbered', t));
     else if ('divider' in b) out.push(prose('divider', ''));
@@ -120,6 +121,10 @@ export function compileBody(blocks) {
       const s = b.status;
       checkTone(s.tone, TONES, 'status');
       out.push(widget('statusBadge', { label: String(s.label ?? 'Status'), value: String(s.value ?? ''), tone: s.tone ?? 'slate' }));
+    }
+    else if ('refs' in b) {
+      const r = b.refs;
+      out.push(widget('refs', { label: String(r.label ?? 'References'), refsJson: JSON.stringify(r.items ?? []) }));
     }
     else if ('hexelMap' in b) {
       out.push(widget('hexelMap', { dataJson: compileHexelScene(b.hexelMap) }));

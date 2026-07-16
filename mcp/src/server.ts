@@ -35,8 +35,15 @@ import {
   docHexelScenes,
   setHexelScene,
   exportScene,
+  describeSequence,
   describeSpace,
   makeAnnotation,
+  buildHexelSpace,
+  insertBlock,
+  BOUNDS_MIN,
+  BOUNDS_MAX,
+  makeBlockId,
+  TILE_ROLES,
 } from './data.js';
 import { notifyStart, notifyCommit, installStopOnExit } from './notify.js';
 
@@ -302,26 +309,74 @@ server.registerTool(
   'gamedoc_list_spaces',
   {
     title: 'List spaces',
-    description: 'Every documentation page that carries a Hexel Map (painted 3D space), with how many spaces and features the inference reads from it. Follow up with gamedoc_describe_space.',
+    description: 'Every documentation page that carries a Hexel Map (painted 3D space), with inferred spaces/features and authored sequence count. Follow up with gamedoc_describe_space.',
     inputSchema: {},
     annotations: READ_ONLY,
   },
   async () => {
     const docs = await loadDocs();
-    const out: Array<{ id: string; title: string; maps: number; spaces: number; features: number }> = [];
+    const out: Array<{ id: string; title: string; maps: number; spaces: number; features: number; sequences: number }> = [];
     for (const d of docs) {
       const maps = docHexelScenes(d.body);
       if (!maps.length) continue;
       let spaces = 0;
       let features = 0;
+      let sequences = 0;
       for (const m of maps) {
         const g = describeSpace(m.scene);
         spaces += g.spaces.length;
         features += g.features.length;
+        sequences += m.scene.sequence.length;
       }
-      out.push({ id: d.id, title: d.title, maps: maps.length, spaces, features });
+      out.push({ id: d.id, title: d.title, maps: maps.length, spaces, features, sequences });
     }
     return json(out);
+  },
+);
+
+server.registerTool(
+  'gamedoc_create_space',
+  {
+    title: liveTitle('Create space'),
+    description: 'Create a new documentation page with a Hexel Map (painted 3D space) on it. Give an initial palette (tile label + role, e.g. {label:"Grass",role:"floor"}) and cells painted against those labels, or omit both to get the same starter garden+house scene a human gets from a fresh widget insert. Follow up with gamedoc_annotate_space to refine, or gamedoc_describe_space to read back what got inferred.',
+    inputSchema: {
+      id: z.string().describe('New doc id (kebab-case, unique).'),
+      title: z.string().describe('Page title.'),
+      parentId: z.string().nullable().optional().describe('Parent doc id, or omit/null for a top-level page.'),
+      subtitle: z.string().optional().describe('Scene subtitle, shown under the map title.'),
+      bounds: z.object({ x: z.number().int(), y: z.number().int(), z: z.number().int() }).optional().describe(`Lattice size, clamped to ${BOUNDS_MIN.x}-${BOUNDS_MAX.x} × ${BOUNDS_MIN.y}-${BOUNDS_MAX.y} × ${BOUNDS_MIN.z}-${BOUNDS_MAX.z}. Defaults to 24×24×8.`),
+      tiles: z.array(z.object({
+        label: z.string().describe('Referenced by cells below — not a minted id.'),
+        role: z.enum(TILE_ROLES).describe('Governs how inference reads this tile: floor/wall/door/water/marker/etc.'),
+        color: z.string().optional().describe('CSS color; a default is assigned if omitted.'),
+        glyph: z.string().optional(),
+      })).optional().describe('Initial palette. Required if "cells" is given.'),
+      cells: z.array(z.object({
+        x: z.number().int(), y: z.number().int(), z: z.number().int(),
+        tile: z.string().describe('A label from "tiles".'),
+      })).optional().describe('Painted cells, referencing "tiles" by label.'),
+      locationName: z.string().optional(),
+      locationNotes: z.string().optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
+  async ({ id, title, parentId, subtitle, bounds, tiles, cells, locationName, locationNotes }) => {
+    const docs = await loadDocs();
+    if (docs.some((d) => d.id === id)) return fail(`Doc "${id}" already exists. Use gamedoc_update_doc to edit it.`);
+    const parent = parentId ?? null;
+    if (parent && !docs.some((d) => d.id === parent)) return fail(`Parent "${parent}" not found. Use gamedoc_list_docs for valid ids.`);
+
+    const { block, scene, unknownTiles } = buildHexelSpace(makeBlockId(), {
+      title, subtitle, bounds, tiles, cells, locationName, locationNotes,
+    });
+    if (unknownTiles.length) return fail(`Unknown tile label(s) in "cells": ${[...new Set(unknownTiles)].join(', ')}. Every cell's "tile" must match a label in "tiles".`);
+
+    const result = validateDoc({ id, title, parentId: parent, order: nextOrder(docs, parent), body: insertBlock('', block) });
+    if (!result.ok) return fail(`Invalid doc — ${result.error}`);
+    await notifyStart(id);
+    const doc = await createDoc(result.doc);
+    await notifyCommit('created', id, doc);
+    return json({ action: 'created', id, blockId: block.id, ...describeSpace(scene) });
   },
 );
 
@@ -329,19 +384,25 @@ server.registerTool(
   'gamedoc_describe_space',
   {
     title: 'Describe space',
-    description: 'The full inferred semantic graph of a page\'s Hexel Map(s): typed spaces (kind, confidence, why, cell count, bbox, materials, containment), the features inside each (with counts), and the relations between them. Each item is tagged source:"inferred" or "annotated" so you know what is a guess vs pinned.',
+    description: 'The full inferred semantic graph of a page\'s Hexel Map(s): typed spaces (kind, confidence, why, cell count, bbox, materials, containment), features, relations, movement routes, and authored level-sequence steps (terrain deltas, camera, narration, layers, overlays). Each item is tagged source:"inferred" or "annotated" so you know what is a guess vs pinned. Pass raw:true to also get the underlying scene (palette + every painted cell) instead of just the inferred graph.',
     inputSchema: {
       id: z.string().describe('Doc id of a page that has a hexel map (see gamedoc_list_spaces).'),
+      raw: z.boolean().optional().describe('Include the raw scene (palette, cells, bounds, annotations) alongside the inferred graph.'),
     },
     annotations: READ_ONLY,
   },
-  async ({ id }) => {
+  async ({ id, raw }) => {
     const docs = await loadDocs();
     const doc = docs.find((d) => d.id === id);
     if (!doc) return fail(`No doc "${id}". Use gamedoc_list_docs to see valid ids.`);
     const maps = docHexelScenes(doc.body);
     if (!maps.length) return fail(`Doc "${id}" has no hexel map. Use gamedoc_list_spaces for pages that do.`);
-    return json(maps.map((m) => ({ blockId: m.blockId, ...describeSpace(m.scene) })));
+    return json(maps.map((m) => ({
+      blockId: m.blockId,
+      ...describeSpace(m.scene),
+      sequence: describeSequence(m.scene),
+      ...(raw ? { scene: m.scene } : {}),
+    })));
   },
 );
 

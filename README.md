@@ -28,8 +28,15 @@ npm run dev:all   # app (:3000) + collab relay (:1234) together
 
 Then open http://localhost:3000.
 
-Copy `.env.example` → `.env.local` and set `NEXT_PUBLIC_COLLAB_URL` for LAN/remote access. It's a
-build-time `NEXT_PUBLIC_*` var, so rebuild after changing it.
+By default, dev (whether on `localhost` or a LAN device) talks to the LIVE production relay — same
+as production's own default — so there's nothing to configure to just use the app.
+
+To test the *local* collab relay/serialization code from another device on your network, run
+`npm run dev:lan:all` (or `dev:lan` if you're running `dev:collab` separately) instead of `dev`/
+`dev:all`. It auto-detects your machine's LAN IP and points the client at it for that run only —
+no `.env.local` edit needed, and it can never affect production since Railway never runs dev
+scripts. (`NEXT_PUBLIC_COLLAB_URL` in `.env.local` still works too, as a persistent manual override
+— it's a build-time `NEXT_PUBLIC_*` var, so restart after changing it.)
 
 ## Scripts
 

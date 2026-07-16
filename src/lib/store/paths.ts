@@ -18,3 +18,13 @@ export function dataFile(collection: string): string {
 export function userDataFile(userId: string, collection: string): string {
   return path.join(DATA_DIR, 'users', userId, collection, 'content.json');
 }
+
+// ── Custom workspaces (plans/06-multi-workspace-dashboard.md Phase 3) ──────
+// A freshly-created (`kind: 'custom'`) workspace's content.json. The flagship
+// and personal schemes above are untouched by design (see Phase 0's "why the
+// migration can be additive") — this is a third case, not a replacement.
+
+/** Absolute path to a custom workspace's collection content.json under DATA_DIR. */
+export function workspaceDataFile(workspaceId: string, collection: string): string {
+  return path.join(DATA_DIR, 'workspaces', workspaceId, collection, 'content.json');
+}

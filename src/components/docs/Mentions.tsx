@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { NodeKind } from '@/lib/docs/graph';
+import { NODE_KINDS, type NodeKind } from '@/lib/docs/graph';
 import type { MentionTarget } from '@/lib/docs/mentionTarget';
 import type { InlineMark } from '@/lib/docs/inlineFormat';
 
@@ -18,8 +18,9 @@ import type { InlineMark } from '@/lib/docs/inlineFormat';
 // source, so these are spelled out (never `bg-${kind}`), mirroring LEGEND_STYLE /
 // the Related panel's KIND_DOT. `chip` is the inline pill; `badge` styles the
 // kind tag in the tooltip + panel header; `mark` is the paint-only highlight worn
-// while the block is being edited (see inlineMentionClass).
-type KindStyle = { label: string; chip: string; badge: string; mark: string };
+// while the block is being edited (see inlineMentionClass); `dot` is the solid
+// swatch the auto reference legend shows next to the kind's name.
+type KindStyle = { label: string; chip: string; badge: string; mark: string; dot: string };
 
 const MENTION_KIND: Record<NodeKind, KindStyle> = {
   character: {
@@ -27,24 +28,28 @@ const MENTION_KIND: Record<NodeKind, KindStyle> = {
     chip: 'bg-violet-50 text-violet-700 ring-violet-200 hover:bg-violet-100 hover:ring-violet-300',
     badge: 'border-violet-200 bg-violet-50 text-violet-700',
     mark: 'bg-violet-200/45 ring-violet-300/60',
+    dot: 'bg-violet-500',
   },
   timeline: {
     label: 'Timeline',
     chip: 'bg-sky-50 text-sky-700 ring-sky-200 hover:bg-sky-100 hover:ring-sky-300',
     badge: 'border-sky-200 bg-sky-50 text-sky-700',
     mark: 'bg-sky-200/45 ring-sky-300/60',
+    dot: 'bg-sky-500',
   },
   page: {
     label: 'Page',
     chip: 'bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100 hover:ring-amber-300',
     badge: 'border-amber-200 bg-amber-50 text-amber-800',
     mark: 'bg-amber-200/45 ring-amber-300/60',
+    dot: 'bg-amber-500',
   },
   space: {
     label: 'Space',
     chip: 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100 hover:ring-emerald-300',
     badge: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     mark: 'bg-emerald-200/45 ring-emerald-300/60',
+    dot: 'bg-emerald-500',
   },
 };
 
@@ -54,7 +59,38 @@ const MENTION_MISSING: KindStyle = {
   chip: 'bg-rose-50 text-rose-600 ring-rose-200 line-through decoration-rose-300 hover:bg-rose-100',
   badge: 'border-rose-200 bg-rose-50 text-rose-700',
   mark: 'bg-rose-200/45 ring-rose-300/60 line-through decoration-rose-400/70',
+  dot: 'bg-rose-400',
 };
+
+/** What a page's references can resolve to: a page kind, or a broken link. */
+export type ReferenceKind = NodeKind | 'missing';
+
+// ── The automatic reference legend ───────────────────────────────────────────
+// A read-only legend bar shown at the top of any page whose prose contains
+// @mentions. It is *derived*, never authored or persisted: each entry is a kind
+// of thing the page actually references, in the same colors the inline chips
+// wear — so the legend explains the chips. Distinct from the page's manual
+// color legend (LegendBar), whose colors are an author-defined vocabulary.
+
+export function ReferenceLegend({ kinds }: { kinds: ReadonlySet<ReferenceKind> }) {
+  if (kinds.size === 0) return null;
+  // Stable presentation order: the controlled kind list, broken refs last.
+  const ordered: ReferenceKind[] = [...NODE_KINDS.filter((k) => kinds.has(k)), ...(kinds.has('missing') ? (['missing'] as const) : [])];
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-line bg-canvas/60 px-2.5 py-2">
+      <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-muted">References</span>
+      {ordered.map((k) => {
+        const style = k === 'missing' ? MENTION_MISSING : MENTION_KIND[k];
+        return (
+          <span key={k} className="inline-flex items-center gap-1.5 text-xs font-medium text-ink/80">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`} aria-hidden />
+            {style.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function kindStyle(target: MentionTarget | null): KindStyle {
   return target ? MENTION_KIND[target.kind] : MENTION_MISSING;

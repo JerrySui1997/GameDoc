@@ -28,8 +28,15 @@ export default {
   trustHost: true,
   session: { strategy: 'jwt' },
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) token.sub = user.id;
+      // Server-side unstable_update({ user: { name } }) calls (the account
+      // page's display-name edit) land here with trigger 'update' — merge
+      // rather than re-deriving from the DB, since this Edge-safe config
+      // can't import Drizzle.
+      if (trigger === 'update' && typeof session?.user?.name === 'string') {
+        token.name = session.user.name;
+      }
       return token;
     },
     session({ session, token }) {

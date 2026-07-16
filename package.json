@@ -7,6 +7,10 @@
     "dev": "next dev --turbopack",
     "dev:collab": "tsx server/collab.ts",
     "dev:all": "concurrently -n next,collab -c blue,green \"npm run dev\" \"npm run dev:collab\"",
+    "dev:lan": "node scripts/dev-lan.mjs",
+    "dev:local-collab": "node scripts/dev-local-collab.mjs",
+    "dev:lan:all": "concurrently -n next,collab -c blue,green \"npm run dev:lan\" \"npm run dev:collab\"",
+    "chat-bridge": "node scripts/chat-bridge.mjs",
     "dev:fresh": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next dev --turbopack",
     "build": "next build && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=cjs --target=node20 --packages=external --alias:@=./src --outfile=dist/server.js",
@@ -15,9 +19,12 @@
     "db:generate": "drizzle-kit generate",
     "validate": "tsx scripts/validate-nightmares.ts",
     "crossref": "tsx scripts/crossref.ts",
+    "backup-live": "tsx scripts/backup-live.ts",
     "doc-graph": "tsx scripts/doc-graph-report.ts",
     "hexel-test": "tsx scripts/hexel-selftest.ts",
     "auth-test": "tsx scripts/auth-selftest.ts"
+    "hexel-scenarios": "tsx scripts/hexel-scenarios/index.ts",
+    "audit-stub-rooms": "tsx scripts/audit-stub-rooms.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

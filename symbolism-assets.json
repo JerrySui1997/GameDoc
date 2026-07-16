@@ -1,0 +1,405 @@
+{
+  "project": "Dreamcatchers / 捕梦者",
+  "description": "Symbolism and iconography asset register — modeled on the Arkane/Dishonored 9-category framework. Iteratively updated across sessions.",
+  "last_updated": "2026-07-15",
+  "principles": {
+    "naming": "Orange Concession is inspired by old Shanghai concession zones and A Clockwork Orange. 'Orange' is a colloquial term arising from the district's visual/institutional symbolism, not a literal Chinese translation.",
+    "formal_name": "New Miri United Concession — 新米里联合租界",
+    "colloquial_name": "the Orange Concession",
+    "design_philosophy": "Systematize into families, not one-offs. Every faction and institution needs a consistent visual identity that works at multiple scales (crest, badge, banner, stamp, signage).",
+    "reference": "Dishonored: The Dunwall Archives (Dark Horse, 2014)"
+  },
+  "categories": {
+    "1_central_occult_glyph": {
+      "description": "The story's single load-bearing supernatural mark — analogous to Dishonored's Outsider's Mark.",
+      "assets": [
+        {
+          "id": "gods-blood-tattoo",
+          "name": "God's Blood Residue Mark / Aria's Tattoo",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Surfacing of residue from God's Blood serum (The Veiled cult, rift-derived). Permanent. Appears on Aria. Danger is bureaucratic exposure, not supernatural.",
+          "design_questions": [
+            "Does the mark have a visual form (glyph, brand, pattern, organic growth)?",
+            "Is it identical on every carrier or unique per individual?",
+            "Does The Veiled cult have a corresponding carved/written version?"
+          ]
+        },
+        {
+          "id": "phosphor-vine",
+          "name": "Phosphor Vine Mark",
+          "status": "partially_defined",
+          "visual_status": "color_defined",
+          "description": "Black vine with cyan-glowing leaf veins at night. Natural warning sign of dream anomalies. NOT neon — extremely subtle.",
+          "color": "#7DA9B8",
+          "design_questions": [
+            "Does the vine carry carved glyphs or is it purely organic?",
+            "Is there a schematic/diagrammatic version used in Dreamcatcher field manuals?"
+          ]
+        }
+      ]
+    },
+    "2_faction_institutional_heraldry": {
+      "description": "Crests, sigils, badges, banners that work at many scales — embossed, embroidered, stamped, carved.",
+      "assets": [
+        {
+          "id": "orange-authority",
+          "name": "Orange / Boulevard Authority (橙廷 Chéngtíng)",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Old money, gas lamps, opera house, stamps/passports. Mannered and quietly terrified of the ungovernable. Orange ink on cadastral map.",
+          "design_questions": [
+            "What is the Boulevard Authority's crest/sigil?",
+            "How does it appear on stamps, passports, bank notes, building facades?",
+            "Typography and material language (gilt, wax, embossed paper)?"
+          ]
+        },
+        {
+          "id": "cobalt-authority",
+          "name": "Cobalt / Compact Maritime Concession (青海盟 Qīnghǎi Méng)",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Shipping & insurance consortium, deep-blue house flags over piers, customs houses, cargo manifests that 'never quite add up'. Cobalt never wanted a boulevard — it wanted a harbor.",
+          "design_questions": [
+            "House flag design(s)?",
+            "Customs stamp and manifest markings?",
+            "How does Cobalt branding differ from Orange visually — material, weight, color register?"
+          ]
+        },
+        {
+          "id": "aequorian-order",
+          "name": "The Aequorian Order (澂教)",
+          "status": "narrative_defined",
+          "visual_status": "symbol_described",
+          "description": "Secular tide-veneration faith. Symbol: abstract geometric tide-mark — horizontal line + calm arc above + rhythmic tick marks (like a tide table). Gilt on white walls. NO real-world religious symbols.",
+          "design_questions": [
+            "Full symbol specification (proportions, stroke weight, arc radius)?",
+            "Variations for building façade, document seal, pendant, banner?",
+            "Hidden irony: faith venerates 'reliable return' but can't recognize Arthur Crowe's literal returns"
+          ]
+        },
+        {
+          "id": "the-veiled",
+          "name": "The Veiled (cult)",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Cult behind God's Blood serum, rift-derived experiments. Origin of Aria's tattoo.",
+          "design_questions": [
+            "Cult sigil or brand?",
+            "Ritual markings and shrine iconography?",
+            "Relationship between their visual language and the God's Blood residue mark?"
+          ]
+        },
+        {
+          "id": "nmpd-waterfront-precinct",
+          "name": "NMPD / Waterfront Police Precinct",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Split building — civilian left wing under one jurisdiction, market-stall right wing under another. Same roof, two colors of law.",
+          "design_questions": [
+            "Badge/insignia design?",
+            "Does the split jurisdiction show in the badge (two halves, two colors)?",
+            "Rank insignia system?"
+          ]
+        },
+        {
+          "id": "dreamcatchers-crew",
+          "name": "Dreamcatchers (crew)",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "The 4-player co-op paranormal investigation crew.",
+          "design_questions": [
+            "Crew insignia or patch?",
+            "Equipment branding (cameras, talismans, field manuals)?",
+            "Relationship to Arthur Crowe's cinnabar seal work?"
+          ]
+        },
+        {
+          "id": "arthur-crowe-network",
+          "name": "Arthur Crowe's Network",
+          "status": "narrative_defined",
+          "visual_status": "color_defined",
+          "description": "Benevolent protector of supernatural secrets. Cinnabar red seal work / talisman ink. Vanishes and returns across generations.",
+          "color": "#C8351F / #8C2E2E",
+          "design_questions": [
+            "Full glyph/sigil system for seal work?",
+            "Talisman designs and their carved markings?",
+            "How does his visual language contrast with The Veiled's?"
+          ]
+        }
+      ]
+    },
+    "3_occult_ritual_iconography": {
+      "description": "Shrines, runes, carved charms, witch marks, ritual symbols.",
+      "assets": [
+        {
+          "id": "five-orders-runes",
+          "name": "Five Fundamental Orders of Mechanized Rune Magic",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Taught at the Miroir Institute. Five orders: Copper/Resonance, Iron-magnetic/Binding, Salt/Disruption, Glass/Revelation, Mirror/Reflection.",
+          "sub_assets": [
+            "Copper / Resonance — rune/glyph",
+            "Iron-magnetic / Binding — rune/glyph",
+            "Salt / Disruption — rune/glyph",
+            "Glass / Revelation — rune/glyph",
+            "Mirror / Reflection — rune/glyph"
+          ],
+          "design_questions": [
+            "Does each order have a distinct rune family or a single base glyph with variations?",
+            "What is the relationship between mechanized runes and The Veiled's cult iconography?",
+            "Are runes carved, etched, printed, or inscribed mechanically?"
+          ]
+        },
+        {
+          "id": "outsider-shrines",
+          "name": "Outsider Shrine Equivalents",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "Dreamcatchers has shrine-like spaces (Tajanda Manor, etc.) but no defined shrine iconography system.",
+          "design_questions": [
+            "Are there dedicated shrine spaces in the world?",
+            "What offerings/markings define a shrine vs. a random anomaly site?",
+            "Connection to the Aequorian Order's tide-mark vs. cult iconography?"
+          ]
+        },
+        {
+          "id": "talisman-iconography",
+          "name": "Talisman / Charm Iconography",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Arthur Crowe's talisman ink is cinnabar red. Bone charm equivalents not yet defined.",
+          "design_questions": [
+            "Are there carved charm objects (bone, wood, metal)?",
+            "What markings do they carry?",
+            "How do they relate to the Five Orders runes?"
+          ]
+        }
+      ]
+    },
+    "4_ability_ui_glyphs": {
+      "description": "Power/ability icons, HUD iconography, chaos-system indicators (if applicable).",
+      "assets": [
+        {
+          "id": "ability-icons",
+          "name": "Supernatural Ability Icons",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "If the game has supernatural abilities, each needs a clean readable UI glyph in one consistent icon family.",
+          "design_questions": [
+            "What abilities exist in the game design?",
+            "Is there a chaos/morality indicator system?",
+            "HUD equipment iconography style?"
+          ]
+        }
+      ]
+    },
+    "5_civic_signage_propaganda": {
+      "description": "Posters, warnings, official notices, street/shop signs, quarantine signage — period-consistent typographic style.",
+      "assets": [
+        {
+          "id": "cadastral-color-map",
+          "name": "The Color-Coded Cadastral Survey Map",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "The founding symbolic artifact. Surveyors inked concessions in colors: orange, cobalt, uncolored fringe. The 'paint on the map' is the load-bearing chromatic logic.",
+          "design_questions": [
+            "What does the actual survey map look like?",
+            "Is it displayed in government buildings, schools, museums?",
+            "Are there reproductions, or only the original?"
+          ]
+        },
+        {
+          "id": "jurisdiction-signage",
+          "name": "Jurisdiction Boundary Signage",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Authority can run out mid-crosswalk. Floor tile color indicates jurisdiction. Streetlamps, gutters, services all recolor block to block.",
+          "design_questions": [
+            "Are there physical boundary markers (signs, painted lines, embedded plates)?",
+            "How do residents and police read jurisdiction at street level?",
+            "What does a checkpoint look like?"
+          ]
+        },
+        {
+          "id": "orangevibe-branding",
+          "name": "OrangeVibe / StreamVibe",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "OrangeVibe is the Boulevard's own flavor of StreamVibe — gas-lit and self-important media platform covering scandals, sales, psychic hotline ads.",
+          "design_questions": [
+            "Masthead/logo design?",
+            "How does OrangeVibe's visual identity differ from base StreamVibe?",
+            "Poster, screen, and print formats?"
+          ]
+        },
+        {
+          "id": "wanted-posters",
+          "name": "Wanted / Official Notice Posters",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "No wanted posters or official notices designed yet, but the world calls for them (Adrian's case, Aria's anomaly flag, etc.).",
+          "design_questions": [
+            "What does an NMPD wanted poster look like?",
+            "What does an Aequorium mandatory-reporting notice look like?",
+            "Are notices color-coded by jurisdiction?"
+          ]
+        }
+      ]
+    },
+    "6_commercial_branding": {
+      "description": "Product labels, business logos, commercial marks — the industrial-economy feel.",
+      "assets": [
+        {
+          "id": "orange-currency",
+          "name": "Orange Currency / Bank Stamps",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Orange money clears faster than any other currency at a Boulevard bank window. Orange papers get you further at checkpoints.",
+          "design_questions": [
+            "Coin design, paper currency design?",
+            "Bank stamp and seal designs?",
+            "How does Cobalt currency differ visually?"
+          ]
+        },
+        {
+          "id": "product-labels",
+          "name": "Product Labels & Commercial Marks",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "No commercial products branded yet. The world's economy (harbor trade, gas-lit boulevard commerce, Outskirts gray market) calls for product labels, shop signs, business logos.",
+          "design_questions": [
+            "What are the key commercial products in New Miri?",
+            "How do Orange vs. Cobalt vs. Outskirts commercial branding differ?",
+            "Are there branded goods that cross jurisdictional lines?"
+          ]
+        }
+      ]
+    },
+    "7_print_media_paperwork": {
+      "description": "Mastheads, book/pamphlet covers, letterheads, wax seals, official forms.",
+      "assets": [
+        {
+          "id": "official-forms",
+          "name": "Official Forms & Paperwork",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "The world runs on paperwork — mandatory-reporting statutes, custody releases, discharge papers, cargo manifests, customs forms. Adrian's career ended over a buried report.",
+          "design_questions": [
+            "What does an Aequorium anomaly-report form look like?",
+            "NMPD discharge papers, custody transfer documents?",
+            "Cobalt customs manifests vs. Orange bank paperwork — visual differences?"
+          ]
+        },
+        {
+          "id": "books-pamphlets",
+          "name": "Books & Pamphlets",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "No in-world books or pamphlets designed yet. The Miroir Institute, Aequorian Order, and The Veiled all imply printed materials.",
+          "design_questions": [
+            "Miroir Institute textbooks on the Five Orders?",
+            "Aequorian Order devotional pamphlets?",
+            "The Veiled cult texts or codices?"
+          ]
+        },
+        {
+          "id": "seals-stamps",
+          "name": "Wax Seals & Official Stamps",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Orange stamps on passports, Cobalt customs stamps, Aequorium registry seals. Arthur Crowe's cinnabar seal work.",
+          "design_questions": [
+            "Design system for official seals across all three jurisdictions?",
+            "Arthur Crowe's personal seal vs. institutional seals?",
+            "How do forgeries and counterfeits look different?"
+          ]
+        }
+      ]
+    },
+    "8_currency_cartography_economy": {
+      "description": "Coin design, city maps, trade markers, the economic backbone.",
+      "assets": [
+        {
+          "id": "city-maps",
+          "name": "City Maps & Cartographic Conventions",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "The harbor survey map is the founding document. City maps with their own iconographic conventions are needed.",
+          "design_questions": [
+            "What cartographic symbols are used for jurisdictions, anomalies, precincts?",
+            "Are there different map styles for official vs. street-level use?",
+            "How are dream-anomaly sites marked on maps?"
+          ]
+        },
+        {
+          "id": "harbor-economy",
+          "name": "Harbor & Trade Economy Markers",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "Cobalt's shipping economy — cargo manifests, crane marks, warehouse brands, refinery marks. The whale-oil equivalent.",
+          "design_questions": [
+            "What is New Miri's primary trade commodity (the whale-oil equivalent)?",
+            "Harbor infrastructure branding?",
+            "How does trade goods branding cross jurisdictional lines?"
+          ]
+        }
+      ]
+    },
+    "9_menu_framing_symbolism": {
+      "description": "Chapter cards, loading-screen imagery, narrative framing symbols.",
+      "assets": [
+        {
+          "id": "chapter-cards",
+          "name": "Chapter / Mission Cards",
+          "status": "undesigned",
+          "visual_status": "undesigned",
+          "description": "Story chapters: An Orange Problem, The Child Prodigy, The Porch Light, Money Is In The Dream, The Crew Assembles. No chapter card designs yet.",
+          "design_questions": [
+            "Tarot-like card system (Dishonored) or different framing?",
+            "What visual motif ties the chapter cards together?",
+            "How do chapter cards reflect the concession color system?"
+          ]
+        },
+        {
+          "id": "orange-problem-motif",
+          "name": "'An Orange Problem' — Narrative-Symbolic Motif",
+          "status": "narrative_defined",
+          "visual_status": "undesigned",
+          "description": "The local idiom for trouble in jurisdictional gaps where the Dream Layer leaks. A narrative-symbolic concept that could become a visual motif.",
+          "design_questions": [
+            "Is there a visual shorthand for 'Orange Problem' (a stamp, a mark, a color gradient)?",
+            "Could this be the framing device for mission/chapter cards?"
+          ]
+        }
+      ]
+    }
+  },
+  "color_palette": {
+    "description": "Established cross-location color signatures from the world's design system.",
+    "colors": [
+      { "name": "Phosphor Cyan", "hex": "#7DA9B8", "usage": "Phosphor vine; dream-anomaly signal" },
+      { "name": "Cinnabar Red", "hex": "#C8351F", "usage": "Arthur's seal work; talisman ink" },
+      { "name": "Crimson Frieze", "hex": "#8C2E2E", "usage": "New Miri indigenous architecture" },
+      { "name": "Trapezoid Black", "hex": "#1A1A1A", "usage": "Indigenous window surrounds" },
+      { "name": "Native Whitewash", "hex": "#EDE6D6", "usage": "Indigenous sloped walls" },
+      { "name": "Sodium Amber", "hex": "#C9893A", "usage": "Street lamps across all locations" },
+      { "name": "Urban Night", "hex": "#2D3142", "usage": "Night sky / dark backdrop" },
+      { "name": "Urban Night Deep", "hex": "#1A2530", "usage": "Darker backdrop variant" },
+      { "name": "Orange (concession)", "hex": "TBD", "usage": "Boulevard Authority ink, stamps, cadastral map — exact shade not yet pinned" },
+      { "name": "Cobalt (concession)", "hex": "TBD", "usage": "Compact Maritime house flags, customs ink — exact shade not yet pinned" }
+    ]
+  },
+  "change_log": [
+    {
+      "date": "2026-07-15",
+      "changes": [
+        "Created asset register with 9-category Arkane framework",
+        "Established formal name: New Miri United Concession — 新米里联合租界",
+        "Orange remains colloquial term from visual/institutional symbolism, not literal translation",
+        "Inventoried all narrative-defined assets from existing canon (content.json, world-builder memory)",
+        "Identified design gaps across all 9 categories"
+      ]
+    }
+  ]
+}
